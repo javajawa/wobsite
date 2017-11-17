@@ -1,0 +1,14 @@
+<container id="$ID">
+	<title>$TITLE</title>
+	<attrs a="a" class="$CLASS" />
+	<description>
+		This is the description!
+	</description>
+	<code><![CDATA[
+Hello.
+I am pre-fomatted!
+	]]></code>
+	<div>
+		<p>Lorem impsum <_var>$TITLE</_var></p>
+	</div>
+</container>
