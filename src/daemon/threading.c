@@ -20,6 +20,16 @@ static size_t poolsize = 0;
 static struct thread_state * pool = NULL;
 static char const * default_thread_name = "unknown_thread";
 
+static pthread_mutex_t thread_state_mtx;
+
+/**
+ * Attempt to expand the allocated memory space which maintains
+ * the list of active threads we have.
+ * The current size is held in "poolsize" and is increased in
+ * increments of 8.
+ *
+ * This function is not thread-safe
+ */
 int thread_pool_expand()
 {
 	poolsize += 8;
@@ -38,8 +48,22 @@ int thread_pool_expand()
 	return 0;
 }
 
-void thread_pool_init()
+/**
+ * Creates the threadpool
+ */
+int thread_pool_init()
 {
+	pthread_mutex_lock(&thread_state_mtx);
+
+	if ( poolsize )
+	{
+		errno = EBADE;
+
+		pthread_mutex_unlock(&thread_state_mtx);
+
+		return 1;
+	}
+
 	if ( thread_pool_expand() )
 	{
 		err( "Failed to allocate thread pool" );
@@ -48,6 +72,10 @@ void thread_pool_init()
 
 	pool[0].thread = pthread_self();
 	pthread_getname_np( pool[0].thread, pool[0].name, 16 );
+
+	pthread_mutex_unlock(&thread_state_mtx);
+
+	return 0;
 }
 
 char const * get_thread_name()
@@ -153,6 +181,7 @@ int thread_join( char * type, void ** retval )
 
 				if ( err == 0 )
 				{
+					errfs( "Thread %s jonied", pool[i].name );
 					strcpy( type, pool[i].type );
 					*pool[i].type = 0;
 
@@ -173,10 +202,9 @@ int thread_join( char * type, void ** retval )
 			return 1;
 		}
 
-		errfs( "Before Sleep, value threads = %li", valid );
-		//                                999999999.
+		errfs( "Waiting on %li threads", valid );
+		//                                 999999999.
 		nanosleep( &((struct timespec){ 1, 10000000LU }), NULL );
-		errs( "After Sleep" );
 	}
 
 	return 1;

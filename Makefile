@@ -1,23 +1,44 @@
-TARGET = web-example
+#!/usr/bin/make -f
+
+WOBSITE := wobsite
 
 .DEFAULT_GOAL = all
 .PHONY = all clean
 .PRECIOUS = layouts/%.c
 
-CFLAGS=-std=c11 -Wall -Wextra -Werror -pedantic -I. -g -O0
-LDFLAGS=-g -O0 -lfcgi -lpthread
+CFLAGS=-std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -g -O0
+LDFLAGS=-g -O0 -lpthread
 
-GENERAL_O=render.o web-example.o
-LAYOUTS_O=$(patsubst %.c,%.o,$(wildcard layouts/*.c))
+LAYOUTS   = $(addprefix gen/,$(wildcard layouts/*.xml))
+LAYOUTS_C = $(patsubst %.xml,%.c,$(LAYOUTS))
+LAYOUTS_H = $(patsubst %.xml,%.h,$(LAYOUTS))
 
-all: $(TARGET) wobsite
+LAYOUTSO  = $(addprefix build/,$(wildcard layouts/*.xml))
+LAYOUTS_O = $(patsubst %.xml,%.o,$(LAYOUTSO))
 
-$(TARGET): $(GENERAL_O) $(LAYOUTS_O)
-wobsite: wobsite.o responder.o threading.o
+DAEMON_O := build/daemon/wobsite.o build/daemon/threading.o build/daemon/responder.o
+RENDER_O := build/renderer/render.o
+COMMON_O :=
 
-layouts/%.c layouts/%.h: layouts/%.xml
+GLOBAL_H := src/globals.h src/layout.h
+
+$(warning $(LAYOUTS_O))
+$(warning $(LAYOUTS_C))
+$(warning $(LAYOUTS_H))
+
+all: $(WOBSITE)
+
+$(WOBSITE): $(COMMON_O) $(RENDER_O) $(DAEMON_O) $(LAYOUTS_O)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+gen/layouts/%.c gen/layouts/%.h: layouts/%.xml
+	-mkdir -vp $(dir $@)
 	./parse_layout $<
 
+build/%.o : src/%.c
+	mkdir -vp $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $^
+
 clean:
-	rm -f $(GENERAL_O) $(LAYOUTS_O) $(TARGET)
+	rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
 

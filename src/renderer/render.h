@@ -1,4 +1,4 @@
-#include "html/node.h"
+#include "xml/node.h"
 
 struct state_node;
 

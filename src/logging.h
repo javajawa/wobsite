@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "threading.h"
+char const * get_thread_name();
 
 #define STRINGIFY(x) #x
 #define STR(x) STRINGIFY(x)
