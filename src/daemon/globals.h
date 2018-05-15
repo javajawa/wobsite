@@ -1,1 +1,1 @@
-int state;
+volatile int state;

@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "threading.h"
 
 #include <pthread.h>
@@ -138,7 +136,7 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 
 size_t signal_threads( char const * type, int signal )
 {
-	size_t count;
+	size_t count = 0;
 
 	for ( size_t i = 0; i < poolsize; ++i )
 	{

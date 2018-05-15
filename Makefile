@@ -4,9 +4,9 @@ WOBSITE := wobsite
 
 .DEFAULT_GOAL = all
 .PHONY = all clean
-.PRECIOUS = layouts/%.c
+#.PRECIOUS = layouts/%.c
 
-CFLAGS=-std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -g -O0
+CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -s -O3
 LDFLAGS=-g -O0 -lpthread
 
 LAYOUTS   = $(addprefix gen/,$(wildcard layouts/*.xml))
@@ -18,13 +18,9 @@ LAYOUTS_O = $(patsubst %.xml,%.o,$(LAYOUTSO))
 
 DAEMON_O := build/daemon/wobsite.o build/daemon/threading.o build/daemon/responder.o
 RENDER_O := build/renderer/render.o
-COMMON_O :=
+COMMON_O := build/logging.o
 
 GLOBAL_H := src/globals.h src/layout.h
-
-$(warning $(LAYOUTS_O))
-$(warning $(LAYOUTS_C))
-$(warning $(LAYOUTS_H))
 
 all: $(WOBSITE)
 
@@ -37,7 +33,11 @@ gen/layouts/%.c gen/layouts/%.h: layouts/%.xml
 
 build/%.o : src/%.c
 	mkdir -vp $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+build/%.o : gen/%.c gen/%.h
+	mkdir -vp $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)

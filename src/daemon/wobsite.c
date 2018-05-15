@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "logging.h"
 
 #include "daemon/globals.h"
@@ -15,17 +13,23 @@
 #define RESPONDER_THREADS 3
 
 static sem_t sem;
-static volatile char closing = 0;
+
+void signal_handler( int signal )
+{
+	(void)signal;
+}
 
 int main( void )
 {
 	int socket_fd;
+	int result;
 	struct sockaddr_in bind_addr = {
 		AF_INET,
 		0xB822,
 		{ 0x0200007FL },
 		{ 0, 0, 0, 0, 0, 0, 0, 0 }
 	};
+	struct sigaction signal_control = { NULL };
 
 	if ( thread_pool_init() )
 	{
@@ -38,7 +42,7 @@ int main( void )
 		err( "Error initialising semaphore" );
 	}
 
-	socket_fd = socket( AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0 );
+	socket_fd = socket( AF_INET, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0 );
 
 	if ( socket_fd == -1 )
 	{
@@ -46,7 +50,7 @@ int main( void )
 		return 1;
 	}
 
-	if ( bind( socket_fd, &bind_addr, sizeof(bind_addr) ) == -1 )
+	if ( bind( socket_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr) ) == -1 )
 	{
 		err( "Failed to open socket 127.0.0.2:8888" );
 		return 1;
@@ -55,9 +59,29 @@ int main( void )
 	if ( listen( socket_fd, -1 ) )
 	{
 		err( "Error listening on socket 127.0.0.2:8888" );
+		return 1;
 	}
 
 	errs( "Socket 127.0.0.2:8888 initialized" );
+
+	signal_control.sa_handler = signal_handler;
+	signal_control.sa_flags   = 0;
+	sigemptyset( &signal_control.sa_mask );
+
+	result = sigaction( SIGUSR1, &signal_control, NULL );
+
+	if ( result == -1 )
+	{
+		err( "Failed to set up signal handler" );
+		result = close( socket_fd );
+
+		if ( result == -1 )
+		{
+			err( "Failed to close socket too" );
+		}
+
+		return 1;
+	}
 
 	errs( "Creating " STR(RESPONDER_THREADS) " responders" );
 	create_threads( "responder", RESPONDER_THREADS, accept_loop, &socket_fd );
@@ -66,7 +90,6 @@ int main( void )
 	{
 		if ( sem_wait( &sem ) == -1 )
 		{
-			errfs( "Semaphore wait complete - %d", errno );
 			if ( errno == EINTR )
 			{
 				break;
@@ -76,20 +99,36 @@ int main( void )
 		}
 	}
 
+	errs( "Switching state to shutdown" );
+	state = 1;
+
 	errs( "Shutting down socket" );
-	close( socket_fd );
+	result = close( socket_fd );
+
+	if ( result == -1 )
+	{
+		errs( "Error closing socket" );
+	}
 
 	char thread_group[12] = "responder";
-
-	errs( "Signalling all threads for shutdown" );
-	signal_threads( "responder", SIGHUP );
 
 	while ( 1 )
 	{
 		strcpy( thread_group, "responder" );
-		thread_join( thread_group, NULL );
+		result = thread_join( thread_group, NULL );
 
-		errfs( "Joined thread of type %s", thread_group );
+		if ( result == 0 )
+		{
+			errfs( "Joined thread of type %s", thread_group );
+		}
+		else
+		{
+			if ( errno == ESRCH )
+			{
+				break;
+			}
+			errf( "Failed to join thread of type %s", thread_group );
+		}
 	}
 
 	return 0;
