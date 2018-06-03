@@ -10,7 +10,7 @@ char const * get_timestamp()
 	time( &timestamp );
 	localtime_r( &timestamp, &date );
 
-	strftime( timestr, 9, "%H:%I:%S", &date );
+	strftime( timestr, 9, "%H:%M:%S", &date );
 
 	return timestr;
 }
