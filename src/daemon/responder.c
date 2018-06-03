@@ -10,6 +10,9 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 
+#define NO_ACTIVE_CONNECTION -1
+#define READ_TIMEOUT_SEC 3
+#define CONN_TIMEOUT_SEC 1
 #define MAX_HEADER_LENGTH 512
 
 #define HEADER_TOO_LONG_CONTENT "Request headers too large (max " STR(MAX_HEADER_LENGTH) " bytes)\n"
@@ -26,7 +29,7 @@
 #define DEFAULT_RESPONSE \
 	"HTTP/1.1 200 OK\r\n" \
 	"Connection: keep-alive\r\n" \
-	"Keep-Alive: timeout=2, max=64\r\n" \
+	"Keep-Alive: timeout=" STR( READ_TIMEOUT_SEC ) ", max=64\r\n" \
 	"Content-Type: text/plain\r\n" \
 	"Content-Length: 4\r\n" \
 	"\r\n" \
@@ -58,13 +61,13 @@ int parse_request( struct request * const request, char * const header )
 int accept_connection( int* connection, int sock )
 {
 	ssize_t result;
-	struct timeval timeout = { 3, 0 };
+	struct timeval timeout = { CONN_TIMEOUT_SEC, 0 };
 	fd_set descriptors;
 
 	FD_ZERO( &descriptors );
 	FD_SET( sock, &descriptors );
 
-	*connection = -1;
+	*connection = NO_ACTIVE_CONNECTION;
 	result = select( sock + 1, &descriptors, NULL, NULL, &timeout );
 
 	if ( result == -1 )
@@ -145,7 +148,7 @@ void* accept_loop( void * args )
 	errs( "Accepting requests" );
 	while ( state == 0 )
 	{
-		if ( connection == -1 )
+		if ( connection == NO_ACTIVE_CONNECTION )
 		{
 			if ( accept_connection( &connection, sock ) )
 			{
@@ -156,14 +159,14 @@ void* accept_loop( void * args )
 		if ( read_headers( header_buffer, connection ) )
 		{
 			close( connection );
-			connection = 0;
+			connection = NO_ACTIVE_CONNECTION;
 			continue;
 		}
 
 		if ( parse_request( &request, header_buffer ) )
 		{
 			close( connection );
-			connection = 0;
+			connection = NO_ACTIVE_CONNECTION;
 			continue;
 		}
 
@@ -176,13 +179,13 @@ void* accept_loop( void * args )
 		{
 			err( "Error writing response to client" );
 			close( connection );
-			connection = 0;
+			connection = NO_ACTIVE_CONNECTION;
 		}
 		else if ( result != sizeof( DEFAULT_RESPONSE ) - 1 )
 		{
 			errfs( "Error writing response to client: only wrote %ld of %ld bytes.", result, DEFAULT_RESPONSE_LEGNTH );
 			close( connection );
-			connection = 0;
+			connection = NO_ACTIVE_CONNECTION;
 		}
 	}
 
