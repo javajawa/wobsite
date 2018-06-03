@@ -4,7 +4,6 @@ WOBSITE := wobsite
 
 .DEFAULT_GOAL = all
 .PHONY = all clean
-#.PRECIOUS = layouts/%.c
 
 CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -s -O3
 LDFLAGS=-g -O0 -lpthread
