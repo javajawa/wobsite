@@ -77,6 +77,48 @@ int thread_pool_init()
 	return 0;
 }
 
+int thread_pool_destroy()
+{
+	pthread_mutex_lock(&thread_state_mtx);
+
+	if ( !poolsize )
+	{
+		errno = EBADE;
+
+		pthread_mutex_unlock(&thread_state_mtx);
+
+		return -1;
+	}
+
+	// Only allow the main process to destroy the pool.
+	if ( pthread_self() != pool[0].thread )
+	{
+		errno = EACCES;
+	}
+
+	// i = 0 will be the main thread, which is allowed to still
+	// be running, so start in 1.
+	for ( size_t i = 1; i < poolsize; ++i )
+	{
+		if ( *pool[i].type != 0 )
+		{
+			errno = EBUSY;
+
+			pthread_mutex_unlock(&thread_state_mtx);
+
+			return -1;
+		}
+	}
+
+	free( pool );
+	pool = NULL;
+	poolsize = 0;
+
+	pthread_mutex_unlock(&thread_state_mtx);
+
+	return 0;
+}
+
 char const * get_thread_name()
 {
 	pthread_t self = pthread_self();

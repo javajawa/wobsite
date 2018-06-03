@@ -131,5 +131,13 @@ int main( void )
 		}
 	}
 
+	// TODO: Proper error handling
+	result = thread_pool_destroy();
+
+	if ( result == -1 )
+	{
+		err( "Could not empty threadpool" );
+	}
+
 	return 0;
 }
