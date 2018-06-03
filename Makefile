@@ -5,7 +5,7 @@ WOBSITE := wobsite
 .DEFAULT_GOAL = all
 .PHONY = all clean
 
-CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -s -O3
+CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -g -O0
 LDFLAGS=-g -O0 -lpthread
 
 LAYOUTS   = $(addprefix gen/,$(wildcard layouts/*.xml))
