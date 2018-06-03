@@ -165,7 +165,8 @@ int thread_join( char * type, void ** retval )
 	while ( 1 )
 	{
 		valid = 0;
-		for ( i = 0; i < poolsize; ++i )
+		// Thread 0 can not be joined.
+		for ( i = 1; i < poolsize; ++i )
 		{
 			if ( *pool[i].type == 0 )
 			{
