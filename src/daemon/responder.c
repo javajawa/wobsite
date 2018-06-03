@@ -130,8 +130,8 @@ int accept_connection( struct connection * connection, int sock )
 		case AF_INET:
 			connection->port = addr.v4.sin_port;
 			memset( &connection->host, 0, sizeof( struct in6_addr ) );
-			memset( (uint8_t*)(&connection->host) + 10, ~0, 2 );
-			memcpy( (uint8_t*)(&connection->host) + 12, &addr.v4.sin_addr,  sizeof( struct in_addr ) );
+			memset( (uint8_t*)(&connection->host) + sizeof( struct in6_addr ) - sizeof( struct in_addr ) - 2, ~0, 2 );
+			memcpy( (uint8_t*)(&connection->host) + sizeof( struct in6_addr ) - sizeof( struct in_addr ), &addr.v4.sin_addr,  sizeof( struct in_addr ) );
 			break;
 
 		case AF_INET6:
