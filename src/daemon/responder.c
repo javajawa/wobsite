@@ -66,12 +66,14 @@ int parse_request( struct request * const request, struct connection const * con
 
 	if ( token_end == NULL )
 	{
-		return HTTP_BAD_REQUEST;
+		errno = HTTP_BAD_REQUEST;
+		return -1;
 	}
 
 	if ( token_end - token_start > 8 )
 	{
-		return HTTP_BAD_METHOD;
+		errno = HTTP_BAD_METHOD;
+		return -1;
 	}
 
 	memcpy( request->method, token_start, token_end - token_start );
@@ -214,7 +216,7 @@ int read_headers( char* buffer, struct connection const * connection )
 
 void* accept_loop( void * args )
 {
-	char header_buffer[MAX_HEADER_LENGTH];
+	char header_buffer[MAX_HEADER_LENGTH] = "";
 	struct request request;
 	struct connection connection = { NO_ACTIVE_CONNECTION, 0, IN6ADDR_ANY_INIT, {0,0}, "[" };
 
@@ -240,9 +242,21 @@ void* accept_loop( void * args )
 			continue;
 		}
 
-		if ( parse_request( &request, &connection, header_buffer ) )
+		if ( parse_request( &request, &connection, header_buffer ) == -1 )
 		{
+			if ( errno < 400 )
+			{
+				errf( "System error parsing request from client %s", connection.remote );
+			}
+			else
+			{
+				errfs( "Logic error parsing request from client %s (%d)", connection.remote, errno );
+			}
+
+			errno = 0;
+			write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 			close( connection.fd );
+			errf( "Closing connection from client %s", connection.remote );
 			connection.fd = NO_ACTIVE_CONNECTION;
 			continue;
 		}
@@ -250,6 +264,7 @@ void* accept_loop( void * args )
 		// TODO: Routing
 		// TODO: Handling
 		// TODO: Response Rendering
+		errfs( "Writing response to %s", connection.remote );
 		result = write( connection.fd, DEFAULT_RESPONSE, DEFAULT_RESPONSE_LEGNTH );
 
 		if ( result < 0 )
