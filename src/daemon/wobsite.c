@@ -77,6 +77,9 @@ int main( void )
 	sigemptyset( &signal_control.sa_mask );
 
 	result = sigaction( SIGUSR1, &signal_control, NULL );
+	result = sigaction( SIGHUP, &signal_control, NULL );
+	result = sigaction( SIGTERM, &signal_control, NULL );
+	result = sigaction( SIGINT, &signal_control, NULL );
 
 	if ( result == -1 )
 	{
@@ -118,6 +121,10 @@ int main( void )
 						break;
 
 					case EAGAIN:
+						break;
+
+					case EINTR:
+						state = 1;
 						break;
 
 					default:
