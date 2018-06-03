@@ -14,7 +14,7 @@
 
 #define HEADER_TOO_LONG_RESPONSE \
 	"HTTP/1.1 400 Bad Request (Request Header too long)\r\n" \
-	"Connection: close" \
+	"Connection: close\r\n" \
 	"Content-Type: text/plain\r\n" \
 	"Content-Length: " STR( sizeof( HEADER_TOO_LONG_CONTENT ) ) "\r\n" \
 	"\r\n" \
@@ -22,7 +22,7 @@
 
 #define DEFAULT_RESPONSE \
 	"HTTP/1.1 200 OK\r\n" \
-	"Connection: close" \
+	"Connection: close\r\n" \
 	"Content-Type: text/plain\r\n" \
 	"Content-Length: 4\r\n" \
 	"\r\n" \
