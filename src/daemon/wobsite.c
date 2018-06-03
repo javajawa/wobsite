@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <time.h>
 
 #define RESPONDER_THREADS 3
 
@@ -30,6 +31,10 @@ int main( void )
 		{ 0, 0, 0, 0, 0, 0, 0, 0 }
 	};
 	struct sigaction signal_control = { NULL };
+
+	// Force detecting the timezone here to guarantee its consistent
+	// across all the threads.
+	tzset();
 
 	if ( thread_pool_init() )
 	{
