@@ -8,7 +8,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
+#include <time.h>
 #include <arpa/inet.h>
 
 #define NO_ACTIVE_CONNECTION -1
@@ -162,56 +162,74 @@ int accept_connection( struct connection * connection, int sock )
 int read_headers( char* buffer, struct connection const * connection )
 {
 	ssize_t result;
-	struct timeval timeout = { READ_TIMEOUT_SEC, 0 };
+	size_t  offset = 0;
+	char   *reader = buffer;
+	uint8_t state  = 0;
+	struct timeval timeout;
 	fd_set descriptors;
+	struct timespec start, end;
 
 	FD_ZERO( &descriptors );
 	FD_SET( connection->fd, &descriptors );
 
-	result = select( connection->fd + 1, &descriptors, NULL, NULL, &timeout );
-
-	if ( result == -1 )
+	while ( 1 )
 	{
-		errf( "Failed in select() on active connection from %s", connection->remote );
-		return 1;
+		// Start the timed section.
+		clock_gettime( CLOCK_MONOTONIC, &start );
+		// Check for input.
+		timeout.tv_sec  = connection->time.tv_sec;
+		timeout.tv_usec = connection->time.tv_usec;
+		result = select( connection->fd + 1, &descriptors, NULL, NULL, &timeout );
+
+		if ( result == -1 )
+		{
+			return -1;
+		}
+		if ( result == 0 )
+		{
+			errno = ETIMEDOUT;
+			return -1;
+		}
+
+		result = read( connection->fd, reader, MAX_HEADER_LENGTH - offset );
+
+		if ( result <= 0 )
+		{
+			return result;
+		}
+
+		offset += result;
+
+		for ( ; result != 0 && state != 4; ++reader, --result )
+		{
+			switch ( *reader )
+			{
+				case '\n': state = ( state + 2 ) & ~1 ; break;
+				case '\r': state |= 1; break;
+				default:   state = 0;
+			}
+		}
+		--reader;
+
+		clock_gettime( CLOCK_MONOTONIC, &end );
+
+		// TODO: decrement timer in connection
+
+		if ( state == 4 )
+		{
+			return offset;
+		}
+
+		if ( offset == MAX_HEADER_LENGTH )
+		{
+			// TODO: Error handling here
+			ioctl( connection->fd, FIONREAD, &result );
+			errfs( "Request headers from %s were too long (approximately %ld bytes)", connection->remote, MAX_HEADER_LENGTH + result );
+
+			errno = EMSGSIZE;
+			return -1;
+		}
 	}
-
-	if ( result == 0 )
-	{
-		errfs( "Timed out waiting for request from %s", connection->remote );
-		return 1;
-	}
-
-	// TODO: Check for double line break (with strsep?) for actual header length
-	// TODO: re-call select for long headers.
-	result = read( connection->fd, buffer, MAX_HEADER_LENGTH );
-
-	if ( result == 0 )
-	{
-		return 1;
-	}
-
-	if ( result == -1 )
-	{
-		errf( "Error reading headers from %s", connection->remote );
-		return 1;
-	}
-
-	if ( result == MAX_HEADER_LENGTH )
-	{
-		// TODO: Error handling here
-		ioctl( connection->fd, FIONREAD, &result );
-
-		errfs( "Request headers from %s were too long (approximately %ld bytes)", connection->remote, MAX_HEADER_LENGTH + result );
-		// TODO: Error handling here
-		// TODO: return this to the main accept_loop.
-		write( connection->fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
-
-		return 1;
-	}
-
-	errfs( "Read %ld bytes from client", result );
-	return 0;
 }
 
 void* accept_loop( void * args )
@@ -235,12 +253,32 @@ void* accept_loop( void * args )
 			}
 		}
 
-		if ( read_headers( header_buffer, &connection ) )
+		connection.time.tv_sec  = READ_TIMEOUT_SEC;
+		connection.time.tv_usec = 0;
+
+		result = read_headers( header_buffer, &connection );
+
+		if ( result == -1 && errno != EBADF && errno != ECONNRESET )
 		{
+			errf( "Error reading request from client %s", connection.remote );
+			write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+		}
+		else if( result == 0 || errno == EBADF || errno == ECONNRESET )
+		{
+			errfs( "Connection closed by client %s", connection.remote );
+		}
+
+		if ( result <= 0 )
+		{
+			errno = 0;
 			close( connection.fd );
+			errf( "Closing socket to client %s", connection.remote );
 			connection.fd = NO_ACTIVE_CONNECTION;
+
 			continue;
 		}
+
+		errfs( "Read %ld bytes from client", result );
 
 		if ( parse_request( &request, &connection, header_buffer ) == -1 )
 		{
