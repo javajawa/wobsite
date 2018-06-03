@@ -79,7 +79,7 @@ int parse_request( struct request * const request, struct connection const * con
 	memcpy( request->method, token_start, token_end - token_start );
 
 	// TODO: Write the rest of the request parser
-	printf( "%s %s %s\n", connection->remote, request->method, "/" );
+	fprintf( stdout, "%s %s %s\n", connection->remote, request->method, "/" );
 
 	return 0;
 }
@@ -311,11 +311,15 @@ void* accept_loop( void * args )
 			close( connection.fd );
 			connection.fd = NO_ACTIVE_CONNECTION;
 		}
-		else if ( result != sizeof( DEFAULT_RESPONSE ) - 1 )
+		else if ( result != DEFAULT_RESPONSE_LEGNTH )
 		{
 			errfs( "Error writing response to client %s: only wrote %ld of %ld bytes.", connection.remote, result, DEFAULT_RESPONSE_LEGNTH );
 			close( connection.fd );
 			connection.fd = NO_ACTIVE_CONNECTION;
+		}
+		else
+		{
+			errfs( "Wrote %lu bytes to %s", result, connection.remote );
 		}
 	}
 
