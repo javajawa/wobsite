@@ -31,6 +31,7 @@ int main( void )
 		{ 0, 0, 0, 0, 0, 0, 0, 0 }
 	};
 	struct sigaction signal_control = { NULL };
+	struct timespec poll_wait = { 0, 399999999 };
 
 	// Force detecting the timezone here to guarantee its consistent
 	// across all the threads.
@@ -93,11 +94,16 @@ int main( void )
 
 	while ( state == 0 )
 	{
-		if ( sem_wait( &sem ) == -1 )
+		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
 		{
 			if ( errno == EINTR )
 			{
 				break;
+			}
+
+			if ( errno == ETIMEDOUT )
+			{
+				continue;
 			}
 
 			err( "Error waiting on semaphore" );
