@@ -1,18 +1,10 @@
 #include "threading.h"
 
-#include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "logging.h"
-
-struct thread_state
-{
-	pthread_t thread;
-	char name[16];
-	char type[12];
-};
 
 static size_t poolsize = 0;
 static struct thread_state * pool = NULL;
@@ -199,7 +191,7 @@ size_t signal_threads( char const * type, int signal )
 	return count;
 }
 
-int thread_join( char * type, void ** retval )
+int thread_join_group( char * type, void ** retval )
 {
 	size_t i, valid;
 	int err;
@@ -250,4 +242,41 @@ int thread_join( char * type, void ** retval )
 	}
 
 	return 1;
+}
+
+int thread_join( struct thread_state * joined, void ** retval )
+{
+	int result;
+
+	for ( size_t i = 1; i < poolsize; ++i )
+	{
+		if ( *pool[i].type == 0 )
+		{
+			continue;
+		}
+
+		result = pthread_tryjoin_np( pool[i].thread, retval );
+
+		switch ( result )
+		{
+			case 0:
+				if ( joined != NULL )
+				{
+					memcpy( joined, &pool[i], sizeof( struct thread_state ) );
+				}
+
+				*pool[i].type = 0;
+
+				return pool[i].thread;
+
+			case EBUSY:
+				continue;
+
+			default:
+				err( "Unable to (try)join a thread" );
+				break;
+		}
+	}
+
+	return 0;
 }

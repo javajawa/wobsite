@@ -33,6 +33,8 @@ int main( void )
 	};
 	struct sigaction signal_control = { NULL };
 	struct timespec poll_wait = { 0, 399999999 };
+	struct thread_state joined_thread;
+	void * thread_result;
 	char buffer[STDIN_BUFFER];
 
 	// Force detecting the timezone here to guarantee its consistent
@@ -151,6 +153,15 @@ int main( void )
 			}
 		}
 
+		if ( thread_join( &joined_thread, &thread_result ) )
+		{
+			errfs(
+				"Joined thread %s (%lu), result %p => %s",
+				joined_thread.name, joined_thread.thread,
+				thread_result, (char*)thread_result
+			);
+		}
+
 		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
 		{
 			if ( errno == EINTR )
@@ -183,7 +194,7 @@ int main( void )
 	while ( 1 )
 	{
 		strcpy( thread_group, "responder" );
-		result = thread_join( thread_group, NULL );
+		result = thread_join_group( thread_group, NULL );
 
 		if ( result == 0 )
 		{
