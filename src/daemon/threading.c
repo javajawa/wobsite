@@ -69,6 +69,7 @@ int thread_pool_init()
 	}
 
 	pool[0].thread = pthread_self();
+	strcpy( pool[0].type, "main" );
 	pthread_getname_np( pool[0].thread, pool[0].name, 16 );
 
 	pthread_mutex_unlock(&thread_state_mtx);
@@ -82,7 +83,7 @@ char const * get_thread_name()
 
 	for ( size_t i = 0; i < poolsize; ++i )
 	{
-		if ( pthread_equal( self, pool[i].thread ) )
+		if ( *pool[i].type != 0 && pthread_equal( self, pool[i].thread ) )
 		{
 			return pool[i].name;
 		}
