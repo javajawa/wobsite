@@ -48,6 +48,8 @@ int main( void )
 	if ( sem_init( &sem, 0, 0 ) == -1 )
 	{
 		err( "Error initialising semaphore" );
+		thread_pool_destroy();
+		return 1;
 	}
 
 	socket_fd = socket( AF_INET, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0 );
@@ -55,18 +57,21 @@ int main( void )
 	if ( socket_fd == -1 )
 	{
 		err( "Failed to initialise socket" );
+		thread_pool_destroy();
 		return 1;
 	}
 
 	if ( bind( socket_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr) ) == -1 )
 	{
 		err( "Failed to open socket 127.0.0.2:8888" );
+		thread_pool_destroy();
 		return 1;
 	}
 
 	if ( listen( socket_fd, -1 ) )
 	{
 		err( "Error listening on socket 127.0.0.2:8888" );
+		thread_pool_destroy();
 		return 1;
 	}
 
@@ -89,6 +94,13 @@ int main( void )
 		if ( result == -1 )
 		{
 			err( "Failed to close socket too" );
+		}
+
+		result = thread_pool_destroy();
+
+		if ( result == -1 )
+		{
+			err( "Failed to close thread pool too" );
 		}
 
 		return 1;
