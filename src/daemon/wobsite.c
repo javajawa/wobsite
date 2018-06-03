@@ -121,7 +121,7 @@ int main( void )
 						break;
 
 					default:
-						err( "Error reading from stdin" );
+						err( "Error reading from standard input" );
 						break;
 				}
 			}
@@ -185,7 +185,7 @@ int main( void )
 
 	if ( result == -1 )
 	{
-		err( "Could not empty threadpool" );
+		err( "Could not empty thread pool" );
 	}
 
 	return 0;
