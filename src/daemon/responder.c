@@ -23,7 +23,7 @@
 	"HTTP/1.1 400 Bad Request (Request Header too long)\r\n" \
 	"Content-Type: text/plain\r\n" \
 	"Connection: close\r\n" \
-	"Content-Length: " STR( sizeof( HEADER_TOO_LONG_CONTENT ) ) "\r\n" \
+	"Content-Length: " "43" "\r\n" \
 	"\r\n" \
 	HEADER_TOO_LONG_CONTENT
 
