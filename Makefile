@@ -31,13 +31,14 @@ gen/layouts/%.c gen/layouts/%.h: layouts/%.xml
 	./parse_layout $<
 
 build/%.o : src/%.c
-	mkdir -vp $(dir $@)
+	-mkdir -vp $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 build/%.o : gen/%.c gen/%.h
-	mkdir -vp $(dir $@)
+	-mkdir -vp $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
+	@rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
+	@rmdir gen/layouts gen
 
