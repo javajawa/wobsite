@@ -99,10 +99,26 @@ int accept_connection( int* connection, int sock )
 int read_headers( char* buffer, int connection )
 {
 	ssize_t result;
+	struct timeval timeout = { READ_TIMEOUT_SEC, 0 };
+	fd_set descriptors;
 
-	// TODO: Replace this with a select
-	// TODO: Marry select timeout to the kee-alive header
-	// TODO: return an error if select fails, or the connection is closed
+	FD_ZERO( &descriptors );
+	FD_SET( connection, &descriptors );
+
+	result = select( connection + 1, &descriptors, NULL, NULL, &timeout );
+
+	if ( result == -1 )
+	{
+		err( "Failed in select() on active connection" );
+		return 1;
+	}
+
+	if ( result == 0 )
+	{
+		errs( "Timed out waiting for request" );
+		return 1;
+	}
+
 	// TODO: Check for double line break (with strsep?) for actual header length
 	// TODO: re-call select for long headers.
 	result = read( connection, buffer, MAX_HEADER_LENGTH );
