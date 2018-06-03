@@ -12,6 +12,7 @@
 #include <time.h>
 
 #define RESPONDER_THREADS 3
+#define STDIN_BUFFER 16
 
 static sem_t sem;
 
@@ -32,6 +33,7 @@ int main( void )
 	};
 	struct sigaction signal_control = { NULL };
 	struct timespec poll_wait = { 0, 399999999 };
+	char buffer[STDIN_BUFFER];
 
 	// Force detecting the timezone here to guarantee its consistent
 	// across all the threads.
@@ -94,6 +96,42 @@ int main( void )
 
 	while ( state == 0 )
 	{
+		while ( 1 )
+		{
+			result = read( STDIN_FILENO, buffer, STDIN_BUFFER );
+
+			if ( result == 0 )
+			{
+				state = 1;
+				break;
+			}
+
+			if ( result == -1 )
+			{
+				switch ( errno )
+				{
+					case 0:
+						state = 1;
+						break;
+
+					case EBADF:
+						break;
+
+					case EAGAIN:
+						break;
+
+					default:
+						err( "Error reading from stdin" );
+						break;
+				}
+			}
+
+			if ( result < 4 )
+			{
+				break;
+			}
+		}
+
 		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
 		{
 			if ( errno == EINTR )
