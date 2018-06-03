@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
+#include <arpa/inet.h>
 
 #define NO_ACTIVE_CONNECTION -1
 #define READ_TIMEOUT_SEC 3
@@ -37,7 +38,23 @@
 
 #define DEFAULT_RESPONSE_LEGNTH sizeof( DEFAULT_RESPONSE ) - 1
 
-int parse_request( struct request * const request, char * const header )
+struct connection
+{
+	int             fd;
+	in_port_t       port;
+	struct in6_addr host;
+	struct timeval  time;
+	char            remote[54];
+};
+
+union sockaddr_inet
+{
+	struct sockaddr     raw;
+	struct sockaddr_in  v4;
+	struct sockaddr_in6 v6;
+};
+
+int parse_request( struct request * const request, struct connection const * connection, char * const header )
 {
 	memset( request, 0, sizeof( struct request ) );
 
@@ -47,27 +64,36 @@ int parse_request( struct request * const request, char * const header )
 
 	token_start = strsep( &token_end, " " );
 
+	if ( token_end == NULL )
+	{
+		return HTTP_BAD_REQUEST;
+	}
+
 	if ( token_end - token_start > 8 )
 	{
 		return HTTP_BAD_METHOD;
 	}
 
 	memcpy( request->method, token_start, token_end - token_start );
-	errfs( "%lx %s", (uint64_t)*(request->method), request->method );
+
+	// TODO: Write the rest of the request parser
+	printf( "%s %s %s\n", connection->remote, request->method, "/" );
 
 	return 0;
 }
 
-int accept_connection( int* connection, int sock )
+int accept_connection( struct connection * connection, int sock )
 {
 	ssize_t result;
 	struct timeval timeout = { CONN_TIMEOUT_SEC, 0 };
+	union sockaddr_inet addr;
+	socklen_t addr_len;
 	fd_set descriptors;
 
 	FD_ZERO( &descriptors );
 	FD_SET( sock, &descriptors );
 
-	*connection = NO_ACTIVE_CONNECTION;
+	connection->fd = NO_ACTIVE_CONNECTION;
 	result = select( sock + 1, &descriptors, NULL, NULL, &timeout );
 
 	if ( result == -1 )
@@ -82,67 +108,102 @@ int accept_connection( int* connection, int sock )
 		return 1;
 	}
 
-	*connection = accept( sock, NULL, NULL );
+	addr_len = sizeof( addr );
+	connection->fd = accept( sock, &addr.raw, &addr_len );
 
-	if ( *connection == -1 )
+	if ( connection->fd == -1 )
 	{
 		err( "Error accepting connection" );
 		// TODO: Better handle errors here.
 		return 1;
 	}
 
-	errs( "Accepted connection" );
+	if ( addr_len > sizeof( addr ) )
+	{
+		errfs( "Could not fit remote address into buffer (got %u of %lu bytes)", addr_len, sizeof( addr ) );
+	}
+
+	switch ( addr.raw.sa_family )
+	{
+		case AF_INET:
+			connection->port = addr.v4.sin_port;
+			memset( &connection->host, 0, sizeof( struct in6_addr ) );
+			memset( (uint8_t*)(&connection->host) + 10, ~0, 2 );
+			memcpy( (uint8_t*)(&connection->host) + 12, &addr.v4.sin_addr,  sizeof( struct in_addr ) );
+			break;
+
+		case AF_INET6:
+			connection->port = addr.v6.sin6_port;
+			memcpy( &connection->host, &addr.v6.sin6_addr, sizeof( struct in6_addr ) );
+			break;
+
+		default:
+			errfs( "Unknown socket family with enumeration value %d", addr.raw.sa_family );
+			memset( &connection->host, 0, sizeof( struct in6_addr ) );
+			connection->port = 0;
+			break;
+	}
+
+	if ( ! inet_ntop( AF_INET6, &connection->host, connection->remote+1, 52 ) )
+	{
+		strcpy( connection->remote + 1, "unknown" );
+	}
+
+	for ( result = 1; connection->remote[result]; ++result );
+	snprintf( connection->remote + result, 52 - result, "]:%u", connection->port );
+
+	errfs( "Accepted connection from %s", connection->remote );
 
 	return 0;
 }
 
-int read_headers( char* buffer, int connection )
+int read_headers( char* buffer, struct connection const * connection )
 {
 	ssize_t result;
 	struct timeval timeout = { READ_TIMEOUT_SEC, 0 };
 	fd_set descriptors;
 
 	FD_ZERO( &descriptors );
-	FD_SET( connection, &descriptors );
+	FD_SET( connection->fd, &descriptors );
 
-	result = select( connection + 1, &descriptors, NULL, NULL, &timeout );
+	result = select( connection->fd + 1, &descriptors, NULL, NULL, &timeout );
 
 	if ( result == -1 )
 	{
-		err( "Failed in select() on active connection" );
+		errf( "Failed in select() on active connection from %s", connection->remote );
 		return 1;
 	}
 
 	if ( result == 0 )
 	{
-		errs( "Timed out waiting for request" );
+		errfs( "Timed out waiting for request from %s", connection->remote );
 		return 1;
 	}
 
 	// TODO: Check for double line break (with strsep?) for actual header length
 	// TODO: re-call select for long headers.
-	result = read( connection, buffer, MAX_HEADER_LENGTH );
+	result = read( connection->fd, buffer, MAX_HEADER_LENGTH );
 
 	if ( result == 0 )
 	{
-		close( connection );
 		return 1;
 	}
 
 	if ( result == -1 )
 	{
-		err( "Error reading headers" );
+		errf( "Error reading headers from %s", connection->remote );
 		return 1;
 	}
 
 	if ( result == MAX_HEADER_LENGTH )
 	{
 		// TODO: Error handling here
-		ioctl( connection, FIONREAD, &result );
+		ioctl( connection->fd, FIONREAD, &result );
 
-		errfs( "Request headers were too long (approximately %ld bytes)", MAX_HEADER_LENGTH + result );
+		errfs( "Request headers from %s were too long (approximately %ld bytes)", connection->remote, MAX_HEADER_LENGTH + result );
 		// TODO: Error handling here
-		write( connection, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+		// TODO: return this to the main accept_loop.
+		write( connection->fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 
 		return 1;
 	}
@@ -155,16 +216,16 @@ void* accept_loop( void * args )
 {
 	char header_buffer[MAX_HEADER_LENGTH];
 	struct request request;
+	struct connection connection = { NO_ACTIVE_CONNECTION, 0, IN6ADDR_ANY_INIT, {0,0}, "[" };
 
 	int sock = *((int*)args);
-	int connection = -1;
 
 	ssize_t result;
 
 	errs( "Accepting requests" );
 	while ( state == 0 )
 	{
-		if ( connection == NO_ACTIVE_CONNECTION )
+		if ( connection.fd == NO_ACTIVE_CONNECTION )
 		{
 			if ( accept_connection( &connection, sock ) )
 			{
@@ -172,36 +233,36 @@ void* accept_loop( void * args )
 			}
 		}
 
-		if ( read_headers( header_buffer, connection ) )
+		if ( read_headers( header_buffer, &connection ) )
 		{
-			close( connection );
-			connection = NO_ACTIVE_CONNECTION;
+			close( connection.fd );
+			connection.fd = NO_ACTIVE_CONNECTION;
 			continue;
 		}
 
-		if ( parse_request( &request, header_buffer ) )
+		if ( parse_request( &request, &connection, header_buffer ) )
 		{
-			close( connection );
-			connection = NO_ACTIVE_CONNECTION;
+			close( connection.fd );
+			connection.fd = NO_ACTIVE_CONNECTION;
 			continue;
 		}
 
 		// TODO: Routing
 		// TODO: Handling
 		// TODO: Response Rendering
-		result = write( connection, DEFAULT_RESPONSE, DEFAULT_RESPONSE_LEGNTH );
+		result = write( connection.fd, DEFAULT_RESPONSE, DEFAULT_RESPONSE_LEGNTH );
 
 		if ( result < 0 )
 		{
-			err( "Error writing response to client" );
-			close( connection );
-			connection = NO_ACTIVE_CONNECTION;
+			errf( "Error writing response to client %s", connection.remote );
+			close( connection.fd );
+			connection.fd = NO_ACTIVE_CONNECTION;
 		}
 		else if ( result != sizeof( DEFAULT_RESPONSE ) - 1 )
 		{
-			errfs( "Error writing response to client: only wrote %ld of %ld bytes.", result, DEFAULT_RESPONSE_LEGNTH );
-			close( connection );
-			connection = NO_ACTIVE_CONNECTION;
+			errfs( "Error writing response to client %s: only wrote %ld of %ld bytes.", connection.remote, result, DEFAULT_RESPONSE_LEGNTH );
+			close( connection.fd );
+			connection.fd = NO_ACTIVE_CONNECTION;
 		}
 	}
 
