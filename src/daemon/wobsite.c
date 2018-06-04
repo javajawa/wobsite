@@ -21,6 +21,8 @@ void signal_handler( int signal )
 	(void)signal;
 }
 
+void main_loop();
+
 int main( void )
 {
 	int socket_fd;
@@ -32,10 +34,6 @@ int main( void )
 		{ 0, 0, 0, 0, 0, 0, 0, 0 }
 	};
 	struct sigaction signal_control = { NULL };
-	struct timespec poll_wait = { 0, 399999999 };
-	struct thread_state joined_thread;
-	void * thread_result;
-	char buffer[STDIN_BUFFER];
 
 	// Force detecting the timezone here to guarantee its consistent
 	// across all the threads.
@@ -84,9 +82,9 @@ int main( void )
 	sigemptyset( &signal_control.sa_mask );
 
 	result = sigaction( SIGUSR1, &signal_control, NULL );
-	result = sigaction( SIGHUP, &signal_control, NULL );
+	result = sigaction( SIGHUP,  &signal_control, NULL );
 	result = sigaction( SIGTERM, &signal_control, NULL );
-	result = sigaction( SIGINT, &signal_control, NULL );
+	result = sigaction( SIGINT,  &signal_control, NULL );
 
 	if ( result == -1 )
 	{
@@ -109,76 +107,11 @@ int main( void )
 	}
 
 	errs( "Creating " STR(RESPONDER_THREADS) " responders" );
+	// TODO: Error handling (if error, set state = STATE_ERROR?)
 	create_threads( "responder", RESPONDER_THREADS, accept_loop, &socket_fd );
 
-	while ( state == 0 )
-	{
-		while ( 1 )
-		{
-			result = read( STDIN_FILENO, buffer, STDIN_BUFFER );
+	main_loop();
 
-			if ( result == 0 )
-			{
-				state = 1;
-				break;
-			}
-
-			if ( result == -1 )
-			{
-				switch ( errno )
-				{
-					case 0:
-						state = 1;
-						break;
-
-					case EBADF:
-						break;
-
-					case EAGAIN:
-						break;
-
-					case EINTR:
-						state = 1;
-						break;
-
-					default:
-						err( "Error reading from standard input" );
-						break;
-				}
-			}
-
-			if ( result < 4 )
-			{
-				break;
-			}
-		}
-
-		if ( thread_join( &joined_thread, &thread_result ) )
-		{
-			errfs(
-				"Joined thread %s (%lu), result %p => %s",
-				joined_thread.name, joined_thread.thread,
-				thread_result, (char*)thread_result
-			);
-		}
-
-		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
-		{
-			if ( errno == EINTR )
-			{
-				break;
-			}
-
-			if ( errno == ETIMEDOUT )
-			{
-				continue;
-			}
-
-			err( "Error waiting on semaphore" );
-		}
-	}
-
-	errs( "Switching state to shutdown" );
 	state = 1;
 
 	errs( "Shutting down socket" );
@@ -219,4 +152,85 @@ int main( void )
 	}
 
 	return 0;
+}
+
+
+void main_loop( void )
+{
+	uint8_t stdin_valid = 1;
+	ssize_t result;
+	struct timespec poll_wait = { 0, 399999999 };
+	struct thread_state joined_thread;
+	void * thread_result;
+	char buffer[STDIN_BUFFER];
+
+	while ( state == 0 )
+	{
+		while ( stdin_valid )
+		{
+			result = read( STDIN_FILENO, buffer, STDIN_BUFFER );
+
+			if ( result == 0 )
+			{
+				errs( "Switching state to shutdown" );
+				state = 1;
+				return;
+			}
+
+			if ( result == -1 )
+			{
+				switch ( errno )
+				{
+					case 0:
+					case EINTR:
+						errs( "Switching state to shutdown" );
+						state = 1;
+						return;
+
+					case EBADF:
+						stdin_valid = 0;
+						break;
+
+					case EAGAIN:
+						break;
+
+					default:
+						err( "Error reading from standard input" );
+						break;
+				}
+			}
+
+			// Keep reading until all buffer is read
+			if ( result < STDIN_BUFFER )
+			{
+				break;
+			}
+		}
+
+		if ( thread_join( &joined_thread, &thread_result ) )
+		{
+			errfs(
+				"Joined thread %s (%lu), result %p => %s",
+				joined_thread.name, joined_thread.thread,
+				thread_result, (char*)thread_result
+			);
+		}
+
+		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
+		{
+			if ( errno == EINTR )
+			{
+				errs( "Switching state to shutdown" );
+				state = 1;
+				return;
+			}
+
+			if ( errno == ETIMEDOUT )
+			{
+				continue;
+			}
+
+			err( "Error waiting on semaphore" );
+		}
+	}
 }
