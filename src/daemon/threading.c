@@ -237,8 +237,7 @@ int thread_join_group( char * type, void ** retval )
 		}
 
 		errfs( "Waiting on %li threads", valid );
-		//                                 999999999.
-		nanosleep( &((struct timespec){ 1, 10000000LU }), NULL );
+		nanosleep( &((struct timespec){ 0, 250000000LU }), NULL );
 	}
 
 	return 1;
