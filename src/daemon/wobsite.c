@@ -1,4 +1,5 @@
 #include "logging.h"
+#include "config.h"
 
 #include "daemon/globals.h"
 #include "daemon/responder.h"
@@ -11,7 +12,6 @@
 #include <unistd.h>
 #include <time.h>
 
-#define RESPONDER_THREADS 3
 #define STDIN_BUFFER 16
 
 static sem_t sem;

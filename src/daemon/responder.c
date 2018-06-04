@@ -1,4 +1,5 @@
 #include "responder.h"
+#include "config.h"
 #include "globals.h"
 #include "http/request.h"
 
@@ -12,9 +13,6 @@
 #include <arpa/inet.h>
 
 #define NO_ACTIVE_CONNECTION -1
-#define READ_TIMEOUT_SEC 3
-#define CONN_TIMEOUT_SEC 1
-#define MAX_HEADER_LENGTH 512
 
 #define HEADER_TOO_LONG_CONTENT "Request headers too large (max " STR(MAX_HEADER_LENGTH) " bytes)\n"
 
