@@ -2,9 +2,9 @@
 
 struct request
 {
-	char    method[8];
+	char    method[MAX_METHOD_LENGTH];
 	uint8_t protocol;
-	char    request[1024];
+	char    request[MAX_REQUEST_LENGTH];
 };
 
 enum http_status_code

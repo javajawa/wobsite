@@ -68,7 +68,7 @@ int parse_request( struct request * const request, struct connection const * con
 		return -1;
 	}
 
-	if ( token_end - token_start > 8 )
+	if ( token_end - token_start >= MAX_METHOD_LENGTH )
 	{
 		errno = HTTP_BAD_METHOD;
 		return -1;
