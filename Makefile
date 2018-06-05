@@ -17,7 +17,7 @@ LAYOUTS_O = $(patsubst %.xml,%.o,$(LAYOUTSO))
 
 DAEMON_O := build/daemon/wobsite.o build/daemon/threading.o build/daemon/responder.o
 RENDER_O := build/renderer/render.o
-COMMON_O := build/logging.o build/strsep.o
+COMMON_O := build/logging.o build/string/strsep.o
 
 GLOBAL_H := src/globals.h src/layout.h
 

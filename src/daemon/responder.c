@@ -1,6 +1,7 @@
 #include "responder.h"
 #include "config.h"
 #include "globals.h"
+#include "string/strsep.h"
 #include "http/request.h"
 
 #include <string.h>
@@ -60,9 +61,9 @@ int parse_request( struct request * const request, struct connection const * con
 
 	token_end = header;
 
-	token_start = strsep( &token_end, " " );
+	token_start = strsep_custom( &token_end, ' ', '\n' );
 
-	if ( token_end == NULL )
+	if ( token_start == NULL )
 	{
 		errno = HTTP_BAD_REQUEST;
 		return -1;
