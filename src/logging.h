@@ -4,9 +4,11 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 char const * get_thread_name();
 char const * get_timestamp();
+void strdump( unsigned char const * restrict, ssize_t );
 
 #define STRINGIFY(x) #x
 #define STR(x) STRINGIFY(x)
