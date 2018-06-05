@@ -53,55 +53,6 @@ union sockaddr_inet
 	struct sockaddr_in6 v6;
 };
 
-int parse_request( struct request * const request, struct connection const * connection, char * const header )
-{
-	// TODO: only for testing
-	memset( request, '\t', sizeof( struct request ) );
-
-	char *token_start, *token_end;
-
-	token_end = header;
-
-	token_start = strsep_custom( &token_end, ' ', '\n' );
-
-	if ( token_start == NULL )
-	{
-		errno = HTTP_BAD_REQUEST;
-		return -1;
-	}
-
-	if ( token_end - token_start >= MAX_METHOD_LENGTH )
-	{
-		errno = 401; //HTTP_BAD_METHOD;
-		return -1;
-	}
-
-	memcpy( request->method, token_start, token_end - token_start );
-
-	++token_end;
-	token_start = strsep_custom( &token_end, ' ', '\n' );
-
-	if ( token_start == NULL )
-	{
-		errno = 402; //HTTP_BAD_REQUEST;
-		return -1;
-	}
-
-	if ( token_end - token_start >= MAX_REQUEST_LENGTH )
-	{
-		errno = 403; //HTTP_BAD_REQUEST;
-		return -1;
-	}
-
-	strdump( (unsigned char *)header, MAX_HEADER_LENGTH );
-	strdump( (unsigned char *)request, sizeof( struct request ) );
-
-	// TODO: Write the rest of the request parser
-	fprintf( stdout, "%s %s %s\n", connection->remote, request->method, "/" );
-
-	return 0;
-}
-
 int accept_connection( struct connection * connection, int sock )
 {
 	ssize_t result;
@@ -248,6 +199,55 @@ int read_headers( char* buffer, struct connection const * connection )
 			return -1;
 		}
 	}
+}
+
+int parse_request( struct request * const request, struct connection const * connection, char * const header )
+{
+	// TODO: only for testing
+	memset( request, '\t', sizeof( struct request ) );
+
+	char *token_start, *token_end;
+
+	token_end = header;
+
+	token_start = strsep_custom( &token_end, ' ', '\n' );
+
+	if ( token_start == NULL )
+	{
+		errno = HTTP_BAD_REQUEST;
+		return -1;
+	}
+
+	if ( token_end - token_start >= MAX_METHOD_LENGTH )
+	{
+		errno = 401; //HTTP_BAD_METHOD;
+		return -1;
+	}
+
+	memcpy( request->method, token_start, token_end - token_start );
+
+	++token_end;
+	token_start = strsep_custom( &token_end, ' ', '\n' );
+
+	if ( token_start == NULL )
+	{
+		errno = 402; //HTTP_BAD_REQUEST;
+		return -1;
+	}
+
+	if ( token_end - token_start >= MAX_REQUEST_LENGTH )
+	{
+		errno = 403; //HTTP_BAD_REQUEST;
+		return -1;
+	}
+
+	strdump( (unsigned char *)header, MAX_HEADER_LENGTH );
+	strdump( (unsigned char *)request, sizeof( struct request ) );
+
+	// TODO: Write the rest of the request parser
+	fprintf( stdout, "%s %s %s\n", connection->remote, request->method, "/" );
+
+	return 0;
 }
 
 void* accept_loop( void * args )
