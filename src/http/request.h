@@ -1,10 +1,13 @@
 #include <stdint.h>
 
+#define HTTP_VERSION_1_1 0x0101
+#define HTTP_VERSION_1_0 0x0100
+
 struct request
 {
-	char    method[MAX_METHOD_LENGTH];
-	uint8_t protocol;
-	char    request[MAX_REQUEST_LENGTH];
+	uint16_t protocol;
+	char*    method;
+	char*    request;
 };
 
 enum http_status_code
