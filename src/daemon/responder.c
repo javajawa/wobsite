@@ -220,6 +220,7 @@ int parse_request( struct request * const request, struct connection const * con
 {
 	char * token = header;
 
+	request->_end   = (char*)~1LLU;
 	request->method = strsep_custom( &token, ' ', '\n' );
 
 	if ( request->method == NULL )

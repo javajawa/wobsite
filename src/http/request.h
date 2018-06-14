@@ -8,6 +8,7 @@ struct request
 	uint16_t protocol;
 	char*    method;
 	char*    request;
+	char*    _end;
 };
 
 enum http_status_code
