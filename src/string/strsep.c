@@ -23,6 +23,12 @@ char * strsep_custom( char ** str, const char delim, const char canary )
 		if ( curr == delim )
 		{
 			*(*str-1) = 0;
+
+			if ( delim == '\n' && *(*str-2) == '\r' )
+			{
+				*(*str-2) = '\0';
+			}
+
 			return start;
 		}
 	}
