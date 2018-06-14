@@ -2,11 +2,11 @@
 
 WOBSITE := wobsite
 
-.DEFAULT_GOAL = all
-.PHONY = all clean
+.DEFAULT_GOAL = build
+.PHONY = build debug clean
 
-CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen -g -O0
-LDFLAGS=-g -O0 -lpthread
+CFLAGS=-D_POSIX_C_SOURCE=200809L -D_ISOC11_SOURCE -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -std=c11 -Wall -Wextra -Werror -pedantic -Isrc -Igen
+LDFLAGS=-lpthread
 
 LAYOUTS   = $(addprefix gen/,$(wildcard layouts/*.xml))
 LAYOUTS_C = $(patsubst %.xml,%.c,$(LAYOUTS))
@@ -21,7 +21,13 @@ COMMON_O := build/logging.o build/string/strsep.o
 
 GLOBAL_H := src/globals.h src/layout.h
 
-all: $(WOBSITE)
+build: CFLAGS  += -O3 -s
+build: LDFLAGS += -O3 -s
+build: $(WOBSITE)
+
+debug: CFLAGS  += -O0 -g -DDEBUG
+debug: LDFLAGS += -O0 -g
+debug: $(WOBSITE)
 
 $(WOBSITE): $(COMMON_O) $(RENDER_O) $(DAEMON_O) $(LAYOUTS_O)
 	$(CC) $(LDFLAGS) -o $@ $^
