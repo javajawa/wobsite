@@ -45,6 +45,6 @@ build/%.o : gen/%.c gen/%.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	@rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
-	@rmdir gen/layouts gen
+	-rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
+	-rmdir gen/layouts gen
 
