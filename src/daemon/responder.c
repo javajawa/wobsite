@@ -284,7 +284,13 @@ void* accept_loop( void * args )
 		if ( result == -1 && errno != EBADF && errno != ECONNRESET )
 		{
 			errf( "Error reading request from client %s", connection.remote );
-			write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+			result = write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+
+			// TODO: handle result == -1 properly
+			if ( result != sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 )
+			{
+				errfs( "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+			}
 		}
 		else if( result == 0 || errno == EBADF || errno == ECONNRESET )
 		{
@@ -315,9 +321,21 @@ void* accept_loop( void * args )
 			}
 
 			errno = 0;
-			write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
-			close( connection.fd );
-			errf( "Closing connection from client %s", connection.remote );
+			result = write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+
+			// TODO: handle result == -1 properly
+			if ( result != sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 )
+			{
+				errfs( "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+			}
+
+			result = close( connection.fd );
+
+			if ( result != -1 )
+			{
+				errf( "Closing connection from client %s", connection.remote );
+			}
+
 			connection.fd = NO_ACTIVE_CONNECTION;
 			continue;
 		}
