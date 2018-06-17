@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "logging.h"
+#include "config.h"
 
 static size_t poolsize = 0;
 static struct thread_state * pool = NULL;
@@ -56,8 +57,7 @@ int thread_pool_init()
 
 	if ( thread_pool_expand() )
 	{
-		err( "Failed to allocate thread pool" );
-		exit( 1 );
+		return 1;
 	}
 
 	pool[0].thread = pthread_self();
@@ -86,6 +86,8 @@ int thread_pool_destroy()
 	if ( pthread_self() != pool[0].thread )
 	{
 		errno = EACCES;
+
+		return -1;
 	}
 
 	// i = 0 will be the main thread, which is allowed to still
@@ -153,9 +155,11 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 		strncpy( pool[index].type, name, 11 );
 		snprintf( pool[index].name, 15, "%s-%lu", name, i );
 
+		errfs( LOG_THREAD, INFO, "Creating %s thread %s", pool[index].type, pool[index].name );
+
 		if ( pthread_create( &pool[index].thread, NULL, func, arg ) )
 		{
-			errf( "Error making responder thread %lu", i );
+			errf( LOG_THREAD, ALRT, "Error making responder thread %lu", i );
 		}
 		else
 		{
@@ -182,7 +186,7 @@ size_t signal_threads( char const * type, int signal )
 
 		if ( *type == 0 || strcmp( pool[i].type, type ) == 0 )
 		{
-			errfs( "Interrupting thread %s", pool[i].name );
+			errfs( LOG_THREAD, VERB, "Interrupting thread %s", pool[i].name );
 			pthread_kill( pool[i].thread, signal );
 			++count;
 		}
@@ -215,7 +219,7 @@ int thread_join_group( char * type, void ** retval )
 
 				if ( err == 0 )
 				{
-					errfs( "Thread %s jonied", pool[i].name );
+					errfs( LOG_THREAD, INFO, "Thread %s joined", pool[i].name );
 					strcpy( type, pool[i].type );
 					*pool[i].type = 0;
 
@@ -224,7 +228,7 @@ int thread_join_group( char * type, void ** retval )
 
 				if ( err != EBUSY )
 				{
-					errfs( "Error trying to join thread %s: %s", pool[i].name, strerror( err ) );
+					errfs( LOG_THREAD, ALRT, "Error trying to join thread %s: %s", pool[i].name, strerror( err ) );
 					errno = 0;
 				}
 			}
@@ -236,7 +240,7 @@ int thread_join_group( char * type, void ** retval )
 			return 1;
 		}
 
-		errfs( "Waiting on %li threads", valid );
+		errfs( LOG_THREAD, INFO, "Waiting on %li threads", valid );
 		nanosleep( &((struct timespec){ 0, 250000000LU }), NULL );
 	}
 
@@ -272,7 +276,7 @@ int thread_join( struct thread_state * joined, void ** retval )
 				continue;
 
 			default:
-				err( "Unable to (try)join a thread" );
+				err( LOG_THREAD, ALRT, "Unable to (try)join a thread" );
 				break;
 		}
 	}

@@ -69,7 +69,7 @@ int accept_connection( struct connection * connection, int sock )
 
 	if ( result == -1 )
 	{
-		err( "Failed in select() on listening socket" );
+		err( LOG_NET, WARN, "Failed in select() on listening socket" );
 		// TODO: Better handle case where sock is an invalid descriptor.
 		return 1;
 	}
@@ -84,14 +84,16 @@ int accept_connection( struct connection * connection, int sock )
 
 	if ( connection->fd == -1 )
 	{
-		err( "Error accepting connection" );
+		err( LOG_NET, WARN, "Error accepting connection" );
 		// TODO: Better handle errors here.
 		return 1;
 	}
 
 	if ( addr_len > sizeof( addr ) )
 	{
-		errfs( "Could not fit remote address into buffer (got %u of %lu bytes)", addr_len, sizeof( addr ) );
+		// VERBOSE only because this should not be possible,
+		// and we can allow the compiler to optimise this check out.
+		errfs( LOG_NET, VERB, "Could not fit remote address into buffer (got %u of %lu bytes)", addr_len, sizeof( addr ) );
 	}
 
 	switch ( addr.raw.sa_family )
@@ -109,21 +111,26 @@ int accept_connection( struct connection * connection, int sock )
 			break;
 
 		default:
-			errfs( "Unknown socket family with enumeration value %d", addr.raw.sa_family );
+			errfs( LOG_NET, ALRT, "Unknown socket family with enumeration value %d", addr.raw.sa_family );
 			memset( &connection->host, 0, sizeof( struct in6_addr ) );
 			connection->port = 0;
 			break;
 	}
 
+	// Convert the IP information to a human readable string
+	// Start at offset 1 because the first character is always '['
 	if ( ! inet_ntop( AF_INET6, &connection->host, connection->remote+1, 52 ) )
 	{
 		strcpy( connection->remote + 1, "unknown" );
 	}
 
+	// Find the end of the pasted string
 	for ( result = 1; connection->remote[result]; ++result );
+
+	// Append the closing ']' and the port number
 	snprintf( connection->remote + result, 52 - result, "]:%u", connection->port );
 
-	errfs( "Accepted connection from %s", connection->remote );
+	errfs( LOG_NET, VERB, "Accepted connection from %s", connection->remote );
 
 	return 0;
 }
@@ -193,7 +200,7 @@ int read_headers( char* buffer, struct connection const * connection )
 		{
 			// TODO: Error handling here
 			ioctl( connection->fd, FIONREAD, &result );
-			errfs( "Request headers from %s were too long (approximately %ld bytes)", connection->remote, MAX_HEADER_LENGTH + result );
+			errfs( LOG_NET, VERB, "Request headers from %s were too long (approximately %ld bytes)", connection->remote, MAX_HEADER_LENGTH + result );
 
 			errno = EMSGSIZE;
 			return -1;
@@ -266,7 +273,7 @@ void* accept_loop( void * args )
 
 	ssize_t result;
 
-	errs( "Accepting requests" );
+	errs( LOG_NET, INFO, "Accepting requests" );
 	while ( state == 0 )
 	{
 		if ( connection.fd == NO_ACTIVE_CONNECTION )
@@ -284,57 +291,57 @@ void* accept_loop( void * args )
 
 		if ( result == -1 && errno != EBADF && errno != ECONNRESET )
 		{
-			errf( "Error reading request from client %s", connection.remote );
+			errf( LOG_NET, WARN, "Error reading request from client %s", connection.remote );
 			result = write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 
 			// TODO: handle result == -1 properly
 			if ( result != sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 )
 			{
-				errfs( "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+				errfs( LOG_NET, WARN, "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 			}
 		}
 		else if( result == 0 || errno == EBADF || errno == ECONNRESET )
 		{
-			errfs( "Connection closed by client %s", connection.remote );
+			errfs( LOG_NET, INFO, "Connection closed by client %s", connection.remote );
 		}
 
 		if ( result <= 0 )
 		{
 			errno = 0;
 			close( connection.fd );
-			errf( "Closing socket to client %s", connection.remote );
+			errf( LOG_NET, VERB, "Closing socket to client %s", connection.remote );
 			connection.fd = NO_ACTIVE_CONNECTION;
 
 			continue;
 		}
 
-		errfs( "Read %ld bytes from client", result );
+		errfs( LOG_NET, VERB, "Read %ld bytes from client", result );
 
 		if ( parse_request( &request, &connection, header_buffer ) == -1 )
 		{
 			if ( errno < 400 )
 			{
-				errf( "System error parsing request from client %s", connection.remote );
+				errf( LOG_NET, INFO, "System error parsing request from client %s", connection.remote );
 			}
 			else
 			{
-				errfs( "Logic error parsing request from client %s (%d)", connection.remote, errno );
+				errfs( LOG_NET, INFO, "Logic error parsing request from client %s (%d)", connection.remote, errno );
 			}
 
 			errno = 0;
 			result = write( connection.fd, HEADER_TOO_LONG_RESPONSE, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 
-			// TODO: handle result == -1 properly
+			// TODO: handle result == -1 properly compared to wrong length
 			if ( result != sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 )
 			{
-				errfs( "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
+				errfs( LOG_NET, WARN, "Unexpected write result for error response to %s: wrote %lu or %lu bytes", connection.remote, result, sizeof( HEADER_TOO_LONG_RESPONSE ) - 1 );
 			}
 
 			result = close( connection.fd );
 
 			if ( result != -1 )
 			{
-				errf( "Closing connection from client %s", connection.remote );
+				errf( LOG_NET, VERB, "Closing connection from client %s", connection.remote );
 			}
 
 			connection.fd = NO_ACTIVE_CONNECTION;
@@ -344,24 +351,24 @@ void* accept_loop( void * args )
 		// TODO: Routing
 		// TODO: Handling
 		// TODO: Response Rendering
-		errfs( "Writing response to %s", connection.remote );
+		errfs( LOG_NET, VERB, "Writing response to %s", connection.remote );
 		result = write( connection.fd, DEFAULT_RESPONSE, DEFAULT_RESPONSE_LEGNTH );
 
 		if ( result < 0 )
 		{
-			errf( "Error writing response to client %s", connection.remote );
+			errf( LOG_NET, WARN, "Error writing response to client %s", connection.remote );
 			close( connection.fd );
 			connection.fd = NO_ACTIVE_CONNECTION;
 		}
 		else if ( result != DEFAULT_RESPONSE_LEGNTH )
 		{
-			errfs( "Error writing response to client %s: only wrote %ld of %ld bytes.", connection.remote, result, DEFAULT_RESPONSE_LEGNTH );
+			errfs( LOG_NET, WARN, "Error writing response to client %s: only wrote %ld of %ld bytes.", connection.remote, result, DEFAULT_RESPONSE_LEGNTH );
 			close( connection.fd );
 			connection.fd = NO_ACTIVE_CONNECTION;
 		}
 		else
 		{
-			errfs( "Wrote %lu bytes to %s", result, connection.remote );
+			errfs( LOG_NET, VERB, "Wrote %lu bytes to %s", result, connection.remote );
 		}
 	}
 

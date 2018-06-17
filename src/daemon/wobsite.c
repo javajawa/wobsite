@@ -41,13 +41,13 @@ int main( void )
 
 	if ( thread_pool_init() )
 	{
-		err( "Unable to initialise thread pool" );
+		err( LOG_THREAD, CRIT, "Unable to initialise thread pool" );
 		return 1;
 	}
 
 	if ( sem_init( &sem, 0, 0 ) == -1 )
 	{
-		err( "Error initialising semaphore" );
+		err( LOG_THREAD, CRIT, "Error initialising semaphore" );
 		thread_pool_destroy();
 		return 1;
 	}
@@ -56,26 +56,26 @@ int main( void )
 
 	if ( socket_fd == -1 )
 	{
-		err( "Failed to initialise socket" );
+		err( LOG_NET, CRIT, "Failed to initialise socket" );
 		thread_pool_destroy();
 		return 1;
 	}
 
 	if ( bind( socket_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr) ) == -1 )
 	{
-		err( "Failed to open socket 127.0.0.2:8888" );
+		err( LOG_NET, CRIT, "Failed to open socket 127.0.0.2:8888" );
 		thread_pool_destroy();
 		return 1;
 	}
 
 	if ( listen( socket_fd, -1 ) )
 	{
-		err( "Error listening on socket 127.0.0.2:8888" );
+		err( LOG_NET, CRIT, "Error listening on socket 127.0.0.2:8888" );
 		thread_pool_destroy();
 		return 1;
 	}
 
-	errs( "Socket 127.0.0.2:8888 initialized" );
+	errs( LOG_NET, INFO, "Socket 127.0.0.2:8888 initialized" );
 
 	signal_control.sa_handler = signal_handler;
 	signal_control.sa_flags   = 0;
@@ -88,38 +88,39 @@ int main( void )
 
 	if ( result == -1 )
 	{
-		err( "Failed to set up signal handler" );
+		err( LOG_THREAD, CRIT, "Failed to set up signal handler" );
 		result = close( socket_fd );
 
 		if ( result == -1 )
 		{
-			err( "Failed to close socket too" );
+			err( LOG_NET, ALRT, "Failed to close socket too" );
 		}
 
 		result = thread_pool_destroy();
 
 		if ( result == -1 )
 		{
-			err( "Failed to close thread pool too" );
+			err( LOG_THREAD, ALRT, "Failed to close thread pool too" );
 		}
 
 		return 1;
 	}
 
-	errs( "Creating " STR(RESPONDER_THREADS) " responders" );
+	errs( LOG_THREAD, VERB, "Creating " STR(RESPONDER_THREADS) " responders" );
 	// TODO: Error handling (if error, set state = STATE_ERROR?)
 	create_threads( "responder", RESPONDER_THREADS, accept_loop, &socket_fd );
 
+	errs( LOG_THREAD, WARN, "Beginning main loop" );
 	main_loop();
 
 	state = 1;
 
-	errs( "Shutting down socket" );
+	errs( LOG_NET, INFO, "Shutting down socket" );
 	result = close( socket_fd );
 
 	if ( result == -1 )
 	{
-		errs( "Error closing socket" );
+		errs( LOG_NET, ALRT, "Error closing socket" );
 	}
 
 	char thread_group[12] = "responder";
@@ -131,7 +132,7 @@ int main( void )
 
 		if ( result == 0 )
 		{
-			errfs( "Joined thread of type %s", thread_group );
+			errfs( LOG_THREAD, VERB, "Joined thread of type %s", thread_group );
 		}
 		else
 		{
@@ -139,7 +140,7 @@ int main( void )
 			{
 				break;
 			}
-			errf( "Failed to join thread of type %s", thread_group );
+			errf( LOG_THREAD, ALRT, "Failed to join thread of type %s", thread_group );
 		}
 	}
 
@@ -148,7 +149,7 @@ int main( void )
 
 	if ( result == -1 )
 	{
-		err( "Could not empty thread pool" );
+		err( LOG_THREAD, ALRT, "Could not empty thread pool" );
 	}
 
 	return 0;
@@ -172,7 +173,7 @@ void main_loop( void )
 
 			if ( result == 0 )
 			{
-				errs( "Switching state to shutdown" );
+				errs( LOG_THREAD, INFO, "Switching state to shutdown" );
 				state = 1;
 				return;
 			}
@@ -183,7 +184,7 @@ void main_loop( void )
 				{
 					case 0:
 					case EINTR:
-						errs( "Switching state to shutdown" );
+						errs( LOG_THREAD, INFO, "Switching state to shutdown" );
 						state = 1;
 						return;
 
@@ -195,7 +196,7 @@ void main_loop( void )
 						break;
 
 					default:
-						err( "Error reading from standard input" );
+						err( LOG_THREAD, WARN, "Error reading from standard input" );
 						break;
 				}
 			}
@@ -210,6 +211,7 @@ void main_loop( void )
 		if ( thread_join( &joined_thread, &thread_result ) )
 		{
 			errfs(
+				LOG_THREAD, VERB,
 				"Joined thread %s (%lu), result %p => %s",
 				joined_thread.name, joined_thread.thread,
 				thread_result, (char*)thread_result
@@ -220,7 +222,7 @@ void main_loop( void )
 		{
 			if ( errno == EINTR )
 			{
-				errs( "Switching state to shutdown" );
+				errs( LOG_THREAD, INFO, "Switching state to shutdown" );
 				state = 1;
 				return;
 			}
@@ -230,7 +232,7 @@ void main_loop( void )
 				continue;
 			}
 
-			err( "Error waiting on semaphore" );
+			err( LOG_THREAD, WARN, "Error waiting on semaphore" );
 		}
 	}
 }

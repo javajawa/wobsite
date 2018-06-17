@@ -10,3 +10,8 @@
 
 // Threading Settings
 #define RESPONDER_THREADS 3
+
+#include <logging.h>
+
+#define LOG_THREAD WARN
+#define LOG_NET    WARN
