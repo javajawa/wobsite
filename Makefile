@@ -19,7 +19,7 @@ DAEMON_O := build/daemon/wobsite.o build/daemon/threading.o build/daemon/respond
 RENDER_O := build/renderer/render.o
 COMMON_O := build/logging.o build/string/strsep.o
 
-GLOBAL_H := src/globals.h src/layout.h
+GLOBAL_H := src/config.h src/layout.h src/logging.h src/daemon/globals.h
 
 build: CFLAGS  += -O3 -s
 build: LDFLAGS += -O3 -s
@@ -36,11 +36,11 @@ gen/layouts/%.c gen/layouts/%.h: layouts/%.xml
 	-mkdir -vp $(dir $@)
 	./parse_layout $<
 
-build/%.o : src/%.c
+build/%.o : src/%.c $(GLOBAL_H)
 	-mkdir -vp $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-build/%.o : gen/%.c gen/%.h
+build/%.o : gen/%.c gen/%.h $(GLOBAL_H)
 	-mkdir -vp $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

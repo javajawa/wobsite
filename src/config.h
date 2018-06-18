@@ -13,5 +13,14 @@
 
 #include <logging.h>
 
+#ifdef DEBUG
+#define LOG_THREAD VERB
+#else
 #define LOG_THREAD WARN
+#endif
+
+#ifdef DEBUG
+#define LOG_NET    VERB
+#else
 #define LOG_NET    WARN
+#endif
