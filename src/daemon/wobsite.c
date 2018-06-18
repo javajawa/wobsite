@@ -5,7 +5,6 @@
 #include "daemon/responder.h"
 #include "daemon/threading.h"
 
-#include <semaphore.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -41,13 +40,6 @@ int main( void )
 	if ( thread_pool_init() )
 	{
 		err( LOG_THREAD, CRIT, "Unable to initialise thread pool" );
-		return 1;
-	}
-
-	if ( sem_init( &sem, 0, 0 ) == -1 )
-	{
-		err( LOG_THREAD, CRIT, "Error initialising semaphore" );
-		thread_pool_destroy();
 		return 1;
 	}
 
@@ -159,7 +151,6 @@ void main_loop( void )
 {
 	uint8_t stdin_valid = 1;
 	ssize_t result;
-	struct timespec poll_wait = { 0, 399999999 };
 	struct thread_state joined_thread;
 	void * thread_result;
 	char buffer[STDIN_BUFFER];
@@ -215,23 +206,6 @@ void main_loop( void )
 				joined_thread.name, joined_thread.thread,
 				thread_result, (char*)thread_result
 			);
-		}
-
-		if ( sem_timedwait( &sem, &poll_wait ) == -1 )
-		{
-			if ( errno == EINTR )
-			{
-				errs( LOG_THREAD, INFO, "Switching state to shutdown" );
-				state = 1;
-				return;
-			}
-
-			if ( errno == ETIMEDOUT )
-			{
-				continue;
-			}
-
-			err( LOG_THREAD, WARN, "Error waiting on semaphore" );
 		}
 	}
 }

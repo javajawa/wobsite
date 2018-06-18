@@ -75,9 +75,17 @@ int accept_connection( struct connection * connection, int sock )
 
 	if ( result == -1 )
 	{
-		err( LOG_NET, WARN, "Failed in select() on listening socket" );
-		// TODO: Better handle case where sock is an invalid descriptor.
-		return 1;
+		switch ( errno )
+		{
+			case EINTR:
+				return 1;
+
+			case EBADF:
+				// TODO: Better handle case where sock is an invalid descriptor
+			default:
+				err( LOG_NET, WARN, "Failed in select() on listening socket" );
+				return 1;
+		}
 	}
 
 	if ( result == 0 )
