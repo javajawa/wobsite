@@ -1,16 +1,22 @@
 #include "responder.h"
+
 #include "config.h"
 #include "globals.h"
+#include "threading.h"
+
 #include "string/strsep.h"
 #include "http/request.h"
 
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <time.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <time.h>
+#include <sys/select.h>
+
 #include <arpa/inet.h>
 
 #define NO_ACTIVE_CONNECTION -1
@@ -371,6 +377,8 @@ void* accept_loop( void * args )
 			errfs( LOG_NET, VERB, "Wrote %lu bytes to %s", result, connection.remote );
 		}
 	}
+
+	thread_done();
 
 	return NULL;
 }

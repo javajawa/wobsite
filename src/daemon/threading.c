@@ -34,6 +34,7 @@ int thread_pool_expand()
 	for ( size_t i = poolsize - 8; i < poolsize; ++i )
 	{
 		*pool[i].type = 0;
+		pool[i].ended = 0;
 	}
 
 	return 0;
@@ -62,7 +63,12 @@ int thread_pool_init()
 
 	pool[0].thread = pthread_self();
 	strcpy( pool[0].type, "main" );
+
+#ifdef _GNU_SOURCE
 	pthread_getname_np( pool[0].thread, pool[0].name, 16 );
+#else
+	strcpy( pool[0].name, "wobsite" );
+#endif
 
 	pthread_mutex_unlock(&thread_state_mtx);
 
@@ -166,8 +172,10 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 			++created;
 		}
 
+#ifdef _GNU_SOURCE
 		// TODO: Error Handling
 		pthread_setname_np( pool[index].thread, pool[index].name );
+#endif
 	}
 
 	return created;
@@ -215,7 +223,13 @@ int thread_join_group( char * type, void ** retval )
 			{
 				++valid;
 
-				err = pthread_tryjoin_np( pool[i].thread, retval );
+				if ( pool[i].ended == 0 )
+				{
+					pthread_kill( pool[i].thread, SIGINT );
+					continue;
+				}
+
+				err = pthread_join( pool[i].thread, retval );
 
 				if ( err == 0 )
 				{
@@ -241,7 +255,7 @@ int thread_join_group( char * type, void ** retval )
 		}
 
 		errfs( LOG_THREAD, INFO, "Waiting on %li threads", valid );
-		nanosleep( &((struct timespec){ 0, 250000000LU }), NULL );
+		nanosleep( &((struct timespec){ 0, 100000000LU }), NULL );
 	}
 
 	return 1;
@@ -258,7 +272,12 @@ int thread_join( struct thread_state * joined, void ** retval )
 			continue;
 		}
 
-		result = pthread_tryjoin_np( pool[i].thread, retval );
+		if ( pool[i].ended == 0 )
+		{
+			continue;
+		}
+
+		result = pthread_join( pool[i].thread, retval );
 
 		switch ( result )
 		{
@@ -282,4 +301,34 @@ int thread_join( struct thread_state * joined, void ** retval )
 	}
 
 	return 0;
+}
+
+int thread_done()
+{
+	pthread_t self = pthread_self();
+
+	for ( size_t i = 1; i < poolsize; ++i )
+	{
+		if ( *pool[i].type == 0 )
+		{
+			continue;
+		}
+
+		if ( ! pthread_equal( self, pool[i].thread ) )
+		{
+			continue;
+		}
+
+		if ( pool[i].ended != 0 )
+		{
+			// TODO: Proper error code
+			return 1;
+		}
+
+		pool[i].ended = 1;
+
+		return 0;
+	}
+
+	return ESRCH;
 }

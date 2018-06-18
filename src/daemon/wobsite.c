@@ -14,10 +14,9 @@
 
 #define STDIN_BUFFER 16
 
-static sem_t sem;
-
 void signal_handler( int signal )
 {
+	errfs( LOG_THREAD, CRIT, "Received signal %d to %s", signal, get_thread_name() );
 	(void)signal;
 }
 
@@ -115,14 +114,6 @@ int main( void )
 
 	state = 1;
 
-	errs( LOG_NET, INFO, "Shutting down socket" );
-	result = close( socket_fd );
-
-	if ( result == -1 )
-	{
-		errs( LOG_NET, ALRT, "Error closing socket" );
-	}
-
 	char thread_group[12] = "responder";
 
 	while ( 1 )
@@ -150,6 +141,14 @@ int main( void )
 	if ( result == -1 )
 	{
 		err( LOG_THREAD, ALRT, "Could not empty thread pool" );
+	}
+
+	errs( LOG_NET, INFO, "Shutting down socket" );
+	result = close( socket_fd );
+
+	if ( result == -1 )
+	{
+		errs( LOG_NET, ALRT, "Error closing socket" );
 	}
 
 	return 0;
