@@ -68,6 +68,8 @@ int main( void )
 
 	errs( LOG_NET, INFO, "Socket 127.0.0.2:8888 initialized" );
 
+	errs( LOG_THREAD, INFO, "Setting up signal handler" );
+
 	signal_control.sa_handler = signal_handler;
 	signal_control.sa_flags   = 0;
 	sigemptyset( &signal_control.sa_mask );
