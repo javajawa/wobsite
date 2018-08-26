@@ -1,0 +1,99 @@
+#!/usr/bin/python3
+# vim: tabstop=4 expandtab nospell
+
+import sys
+from string import ascii_letters
+
+def add_token( node, token, fulltoken ):
+    if len( token ) == 0:
+        node[ '\0' ] = fulltoken
+        return
+
+    if not token[0] in node:
+        node[ token[0] ] = {}
+
+    add_token( node[token[0]], token[1:], fulltoken )
+
+def print_tree( node, indent, c_file ):
+    if len( node ) == 1:
+        for i in sorted( node.keys() ):
+            if i == '\0':
+                c_file.write( '\n' + '\t' * indent + 'while ( *str == \' \' ) ++str;\n' )
+                c_file.write( '\n' + '\t' * indent + 'out->' + node[i] + ' = str;\n' )
+                return
+
+            elif ( i in ascii_letters ):
+                c_file.write( '\t' * indent + 'if ( ( *str & 0xDF ) !=\'' + i.upper() + '\' ) { goto cleanup; } ++str;\n' )
+
+            else:
+                c_file.write( '\t' * indent + 'if ( *str !=\'' + i + '\' ) { goto cleanup; } ++str;\n' )
+
+            print_tree( node[i], indent, c_file );
+            return
+
+    else:
+        c_file.write( '\n' + '\t' * indent + 'switch ( *str )\n' )
+        c_file.write( '\t' * indent + '{\n' )
+
+        for i in sorted( node.keys() ):
+            if i == '\0':
+                c_file.write( '\n' + '\t' * indent + 'while ( *str == \' \' ) ++str;\n' )
+                c_file.write( '\n' + '\t' * indent + 'out->' + node[i] + ' = str;\n' )
+                return
+
+            if i in ascii_letters:
+                c_file.write( '\t' * (indent + 1) + 'case \'' + i.upper() + '\':\n' )
+                c_file.write( '\t' * (indent + 1) + 'case \'' + i.lower() + '\':\n' )
+
+            else:
+                c_file.write( '\t' * (indent + 1) + 'case \'' + i + '\':\n' )
+
+            c_file.write( '\t' * (indent + 2) + '++str;\n' )
+            print_tree( node[i], indent + 2, c_file )
+            c_file.write( '\t' * (indent + 2) + 'break;\n\n' )
+
+        c_file.write( '\t' * (indent + 1) + 'default:\n' )
+        c_file.write( '\t' * (indent + 2) + 'goto cleanup;\n' )
+        c_file.write( '\t' * indent + '}\n' )
+
+    c_file.write( '\n' )
+
+def gen( name ):
+    tree = {}
+    h_file = open( 'gen/' + name + '.h', 'w' )
+    c_file = open( 'gen/' + name + '.c', 'w' )
+
+    with open( name + '.fl', 'rU' ) as f:
+        sep  = f.readline().strip()
+        term = f.readline().strip()
+
+        h_file.write( 'struct ' + 'lexed_' + name + '\n{\n' )
+
+        for line in f:
+            if line.strip():
+                h_file.write( '\tconst char * ' + line.strip().replace( '-', '_' ) + ';\n' )
+                add_token( tree, line.strip() + sep, line.strip().replace( '-', '_' ) )
+
+        h_file.write( '};\n\n' )
+        h_file.write( 'void lex_' + name + '( char * restrict str, struct lexed_' + name + ' * restrict out );\n' )
+
+    h_file.close()
+
+    c_file.write( '#include "' + name + '.h"\n' )
+    c_file.write( '#include <string.h>\n\n' )
+    c_file.write( 'void lex_' + name + '( char * restrict str, struct lexed_' + name + ' * restrict out )\n{\n' )
+    c_file.write( '\tmemset( out, 0, sizeof( struct lexed_' + name + ' ) );\n\n' )
+    c_file.write( '\twhile ( 1 )\n\t{' )
+    print_tree( tree, 2, c_file )
+    c_file.write( 'cleanup:' )
+    c_file.write( '\n\t\twhile ( 1 )\n\t\t{\n' )
+    c_file.write( '\t\t\tif ( *str == 0 )\n\t\t\t{\n\t\t\t\treturn;\n\t\t\t}\n' )
+    c_file.write( '\n\t\t\tif ( *str == \'' + term + '\' )\n\t\t\t{\n\t\t\t\tstr[0] = 0;\n\t\t\t\t++str;\n\t\t\t\tbreak;\n\t\t\t}\n' )
+    if term == "\\n":
+        c_file.write( '\n\t\t\tif ( *str == \'\\r\' && str[1] == \'\\n\' )\n\t\t\t{\n\t\t\t\tstr[0] = 0;\n\t\t\t\tstr[1] = 0;\n\t\t\t\tstr += 2;\n\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\t++str;\n' )
+
+    c_file.write( '\t\t}\n\t}\n}\n' )
+    c_file.close()
+
+if __name__ == '__main__':
+    gen( 'headers' )
