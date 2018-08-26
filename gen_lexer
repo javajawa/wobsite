@@ -31,46 +31,45 @@ def print_tree( node, indent, char, c_file ):
                 return print_token_read( indent, node[i], char, c_file )
 
             elif ( i in ascii_letters ):
-                c_file.write( '\t' * indent + 'if ( ( str[' + str(char) + '] & 0xDF ) != \'' + i.upper() + '\' )\n' )
-
+                format_str = 'if ( ( str[{0}] & 0xDF ) != \'{1}\' )'
             else:
-                c_file.write( '\t' * indent + 'if ( str[' + str(char) + '] != \'' + i + '\' )\n' )
+                format_str = 'if (   str[{0}]          != \'{1}\' )'
 
-            c_file.write( '\t' * indent + '{\n' )
-            c_file.write( '\t' * (indent+1) + 'str += ' + str(char) + ';\n' )
-            c_file.write( '\t' * (indent+1) + 'goto cleanup;\n' )
-            c_file.write( '\t' * indent + '}\n' )
+            w( c_file, indent, format_str.format( char, i.upper() ), '{' )
+            w( c_file, indent + 1, 'str += {0};'.format(char), 'goto cleanup;' )
+            w( c_file, indent, '}' )
 
             print_tree( node[i], indent, char + 1, c_file );
-            return
+
+        return
 
     case = set( node.keys() ).issubset( ascii_and_null )
 
     if case:
-        c_file.write( '\n' + '\t' * indent + 'switch ( str[' + str(char) + '] & 0xDF )\n' )
+        format_str = 'switch ( str[{0}] & 0xDF )'
     else:
-        c_file.write( '\n' + '\t' * indent + 'switch ( str[' + str(char) + '] )\n' )
+        format_str = 'switch ( str[{0}] )'
 
-    c_file.write( '\t' * indent + '{\n' )
+    w( c_file, indent, '', format_str.format( char ), '{' )
 
     for i in sorted( node.keys() ):
         if i == '\0':
-            c_file.write( '\t' * (indent + 1) + 'case \'\\0\':\n' )
+            w( c_file, indent + 1, "case '\\0':" )
             print_token_read( indent + 2, node[i], char, c_file )
 
         else:
-            c_file.write( '\t' * (indent + 1) + 'case \'' + i.upper() + '\':\n' )
+            w( c_file, indent + 1, "case '{0}':".format( i.upper() ) )
+
             if not case and i.lower() != i.upper():
-                c_file.write( '\t' * (indent + 1) + 'case \'' + i.lower() + '\':\n' )
+                w( c_file, indent + 1, "case '{0}':".format( i.lower() ) )
+
             print_tree( node[i], indent + 2, char + 1, c_file )
 
-        c_file.write( '\t' * (indent + 2) + 'break;\n\n' )
+        w( c_file, indent + 2, 'break;', '' )
 
-    c_file.write( '\t' * (indent + 1) + 'default:\n' )
-    c_file.write( '\t' * (indent + 2) + 'goto cleanup;\n' )
-    c_file.write( '\t' * indent + '}\n' )
-
-    c_file.write( '\n' )
+    w( c_file, indent + 1, 'default:' )
+    w( c_file, indent + 2, 'goto cleanup;' )
+    w( c_file, indent,     '}', '' )
 
 def gen( name ):
     tree = {}
@@ -107,12 +106,13 @@ def gen( name ):
     w( c_file, 2, 'while ( 1 )', '{' )
     w( c_file, 3,   'if ( str[0] == 0 )', '{' )
     w( c_file, 4,       'return;' )
-    w( c_file, 3,   '}', 'if ( str[0] == \'' + term + '\' )', '{' )
+    w( c_file, 3,   '}', '' )
+    w( c_file, 3,   'if ( str[0] == \'' + term + '\' )', '{' )
     w( c_file, 4,       'str[0] = 0;', '++str;', 'break;' )
     w( c_file, 3,   '}' )
 
     if term == "\\n":
-        w( c_file, 3, 'if ( str[0] == \'\\r\' && str[1] == \'\\n\' )', '{' )
+        w( c_file, 3, '', 'if ( str[0] == \'\\r\' && str[1] == \'\\n\' )', '{' )
         w( c_file, 4, 'str[0] = 0;', 'str[1] = 0;', 'str += 2;', 'break;' )
         w( c_file, 3, '}' )
 
@@ -127,7 +127,10 @@ def gen( name ):
 
 def w( file: IO, indent: int, *data: str ):
     for line in data:
-        file.write( '\t' * indent + line + '\n' )
+        if len( line ):
+            file.write( '\t' * indent + line + '\n' )
+        else:
+            file.write( '\n' )
 
 
 if __name__ == '__main__':
