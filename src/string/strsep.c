@@ -1,4 +1,4 @@
-#include "strsep.h"
+#include "string/strsep.h"
 
 #include <stddef.h>
 

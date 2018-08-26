@@ -1,7 +1,7 @@
-#include "responder.h"
+#include "daemon/responder.h"
 
 #include "config.h"
-#include "threading.h"
+#include "daemon/threading.h"
 
 #include "string/strsep.h"
 #include "http/request.h"

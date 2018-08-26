@@ -20,7 +20,7 @@ if LAYOUT.endswith( '.xml' ):
 
 TREE = minidom.parse( 'layouts/{}.xml'.format( LAYOUT ) )
 
-H_FILE = open( 'gen/layouts/{}.h'.format( LAYOUT ), 'w' )
+H_FILE = open( 'include/gen/layouts/{}.h'.format( LAYOUT ), 'w' )
 
 H_FILE.write( '#ifndef LAYOUT_{}_H\n'.format( LAYOUT ) )
 H_FILE.write( '#define LAYOUT_{}_H\n\n'.format( LAYOUT ) )
@@ -28,7 +28,7 @@ H_FILE.write( '#include "xml/node.h"\n\n' )
 H_FILE.write( 'extern const union html_node {};\n\n'.format( LAYOUT ) )
 
 C_FILE = open( 'gen/layouts/{}.c'.format( LAYOUT ), 'w+b' )
-cwrite( '#include "layouts/{}.h"\n'.format( LAYOUT ) )
+cwrite( '#include "gen/layouts/{}.h"\n'.format( LAYOUT ) )
 cwrite( '#include "layout.h"\n\n' )
 cwrite( 'const union html_node {} =\n'.format( LAYOUT ) )
 
