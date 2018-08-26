@@ -1,7 +1,6 @@
 #include "responder.h"
 
 #include "config.h"
-#include "globals.h"
 #include "threading.h"
 
 #include "string/strsep.h"
@@ -282,6 +281,7 @@ void* accept_loop( void * args )
 	char header_buffer[MAX_HEADER_LENGTH] = "";
 	struct request request;
 	struct connection connection = { NO_ACTIVE_CONNECTION, 0, IN6ADDR_ANY_INIT, {0,0}, "[" };
+	enum state state;
 
 	int sock = *((int*)args);
 
@@ -290,8 +290,15 @@ void* accept_loop( void * args )
 	errs( LOG_NET, INFO, "Accepting requests" );
 	while ( state == 0 )
 	{
+		get_current_thread_details( NULL, &state );
+
 		if ( connection.fd == NO_ACTIVE_CONNECTION )
 		{
+			if ( ( state & ACCEPT ) == 0 )
+			{
+				break;
+			}
+
 			if ( accept_connection( &connection, sock ) )
 			{
 				continue;
@@ -383,6 +390,12 @@ void* accept_loop( void * args )
 		else
 		{
 			errfs( LOG_NET, VERB, "Wrote %lu bytes to %s", result, connection.remote );
+		}
+
+		if ( connection.fd != NO_ACTIVE_CONNECTION && ( state & KEEPALIVE ) == 0 )
+		{
+			close( connection.fd );
+			connection.fd = NO_ACTIVE_CONNECTION;
 		}
 	}
 

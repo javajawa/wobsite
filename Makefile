@@ -19,7 +19,7 @@ DAEMON_O := build/daemon/wobsite.o build/daemon/threading.o build/daemon/respond
 RENDER_O := build/renderer/render.o
 COMMON_O := build/logging.o build/string/strsep.o
 
-GLOBAL_H := src/config.h src/layout.h src/logging.h src/daemon/globals.h
+GLOBAL_H := src/config.h src/layout.h src/logging.h
 
 build: CFLAGS  += -O3 -s
 build: LDFLAGS += -O3 -s

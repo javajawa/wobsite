@@ -1,7 +1,6 @@
 #include "logging.h"
 #include "config.h"
 
-#include "daemon/globals.h"
 #include "daemon/responder.h"
 #include "daemon/threading.h"
 
@@ -15,7 +14,7 @@
 
 void signal_handler( int signal )
 {
-	errfs( LOG_THREAD, CRIT, "Received signal %d to %s", signal, get_thread_name() );
+	errfs( LOG_THREAD, CRIT, "Received signal %d to %s", signal, get_current_thread_name() );
 	(void)signal;
 }
 
@@ -101,23 +100,21 @@ int main( void )
 
 	errs( LOG_THREAD, VERB, "Creating " STR(RESPONDER_THREADS) " responders" );
 	// TODO: Error handling (if error, set state = STATE_ERROR?)
-	create_threads( "responder", RESPONDER_THREADS, accept_loop, &socket_fd );
+	create_threads( THREAD_RESPONDER, RESPONDER_THREADS, accept_loop, &socket_fd );
 
 	errs( LOG_THREAD, WARN, "Beginning main loop" );
 	main_loop();
 
-	state = 1;
-
-	char thread_group[12] = "responder";
+	errs( LOG_THREAD, INFO, "Signalling responders to hangup" );
+	signal_threads( THREAD_RESPONDER, SIGHUP );
 
 	while ( 1 )
 	{
-		strcpy( thread_group, "responder" );
-		result = thread_join_group( thread_group, NULL );
+		result = thread_join_group( THREAD_RESPONDER, NULL );
 
 		if ( result == 0 )
 		{
-			errfs( LOG_THREAD, VERB, "Joined thread of type %s", thread_group );
+			errfs( LOG_THREAD, VERB, "Joined thread of type %s", get_thread_type_name( THREAD_RESPONDER ) );
 		}
 		else
 		{
@@ -125,7 +122,7 @@ int main( void )
 			{
 				break;
 			}
-			errf( LOG_THREAD, ALRT, "Failed to join thread of type %s", thread_group );
+			errf( LOG_THREAD, ALRT, "Failed to join thread of type %s", get_thread_type_name( THREAD_RESPONDER ) );
 		}
 	}
 
@@ -157,7 +154,7 @@ void main_loop( void )
 	void * thread_result;
 	char buffer[STDIN_BUFFER];
 
-	while ( state == 0 )
+	while ( 1 )
 	{
 		while ( stdin_valid )
 		{
@@ -165,8 +162,6 @@ void main_loop( void )
 
 			if ( result == 0 )
 			{
-				errs( LOG_THREAD, INFO, "Switching state to shutdown" );
-				state = 1;
 				return;
 			}
 
@@ -176,8 +171,6 @@ void main_loop( void )
 				{
 					case 0:
 					case EINTR:
-						errs( LOG_THREAD, INFO, "Switching state to shutdown" );
-						state = 1;
 						return;
 
 					case EBADF:
@@ -194,6 +187,7 @@ void main_loop( void )
 			}
 
 			// Keep reading until all buffer is read
+			// TODO: Actually read and throw away unused data.
 			if ( result < STDIN_BUFFER )
 			{
 				break;

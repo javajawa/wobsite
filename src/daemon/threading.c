@@ -13,6 +13,22 @@ static char const * default_thread_name = "unknown_thread";
 
 static pthread_mutex_t thread_state_mtx;
 
+static const char* thread_type_names[] = {
+	(char*)NULL,
+	"main",
+	"responder"
+};
+
+static size_t thead_type_counts[] = {
+	0,
+	0
+};
+
+char const * get_thread_type_name( enum thread_type type )
+{
+	return thread_type_names[ type ];
+}
+
 /**
  * Attempt to expand the allocated memory space which maintains
  * the list of active threads we have.
@@ -33,8 +49,8 @@ int thread_pool_expand()
 
 	for ( size_t i = poolsize - 8; i < poolsize; ++i )
 	{
-		*pool[i].type = 0;
-		pool[i].ended = 0;
+		pool[i].type  = THREAD_ANY;
+		pool[i].state = UNCREATED;
 	}
 
 	return 0;
@@ -62,7 +78,7 @@ int thread_pool_init()
 	}
 
 	pool[0].thread = pthread_self();
-	strcpy( pool[0].type, "main" );
+	pool[0].type   = THREAD_MAIN;
 
 #ifdef _GNU_SOURCE
 	pthread_getname_np( pool[0].thread, pool[0].name, 16 );
@@ -100,7 +116,7 @@ int thread_pool_destroy()
 	// be running, so start in 1.
 	for ( size_t i = 1; i < poolsize; ++i )
 	{
-		if ( *pool[i].type != 0 )
+		if ( pool[i].type != THREAD_ANY )
 		{
 			errno = EBUSY;
 
@@ -119,13 +135,38 @@ int thread_pool_destroy()
 	return 0;
 }
 
-char const * get_thread_name()
+int get_current_thread_details( enum thread_type * type, enum state * state )
 {
 	pthread_t self = pthread_self();
 
 	for ( size_t i = 0; i < poolsize; ++i )
 	{
-		if ( *pool[i].type != 0 && pthread_equal( self, pool[i].thread ) )
+		if ( pool[i].type != 0 && pthread_equal( self, pool[i].thread ) )
+		{
+			if ( type )
+			{
+				*type  = pool[i].type;
+			}
+			if ( state )
+			{
+				*state = pool[i].state;
+			}
+			return 0;
+		}
+	}
+
+	errno = ESRCH;
+
+	return 1;
+}
+
+char const * get_current_thread_name()
+{
+	pthread_t self = pthread_self();
+
+	for ( size_t i = 0; i < poolsize; ++i )
+	{
+		if ( pool[i].type != 0 && pthread_equal( self, pool[i].thread ) )
 		{
 			return pool[i].name;
 		}
@@ -134,7 +175,7 @@ char const * get_thread_name()
 	return default_thread_name;
 }
 
-size_t create_threads( char const * name, size_t count, void *(*func) (void *), void * arg )
+size_t create_threads( enum thread_type type, size_t count, void *(*func) (void *), void * arg )
 {
 	size_t created = 0;
 	size_t index = 0;
@@ -144,9 +185,11 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 		return 0;
 	}
 
+	// TODO: Lock the mutex here!
+
 	for ( size_t i = 0; i < count; ++i )
 	{
-		while ( *pool[index].type != 0 )
+		while ( pool[index].type != THREAD_FREE )
 		{
 			if ( ++index == poolsize )
 			{
@@ -157,15 +200,15 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 			}
 		}
 
+		pool[index].type = type;
 		// TODO: Error Handling
-		strncpy( pool[index].type, name, 11 );
-		snprintf( pool[index].name, 15, "%s-%lu", name, i );
+		snprintf( pool[index].name, 15, "%s-%lu", thread_type_names[ type ], ++thead_type_counts[ type ] );
 
-		errfs( LOG_THREAD, INFO, "Creating %s thread %s", pool[index].type, pool[index].name );
+		errfs( LOG_THREAD, INFO, "Creating %s thread %s", thread_type_names[ type ], pool[index].name );
 
 		if ( pthread_create( &pool[index].thread, NULL, func, arg ) )
 		{
-			errf( LOG_THREAD, ALRT, "Error making responder thread %lu", i );
+			errf( LOG_THREAD, ALRT, "Error running thread %s",  pool[index].name );
 		}
 		else
 		{
@@ -178,21 +221,23 @@ size_t create_threads( char const * name, size_t count, void *(*func) (void *), 
 #endif
 	}
 
+	// TODO: Unlock mutex here
+
 	return created;
 }
 
-size_t signal_threads( char const * type, int signal )
+size_t signal_threads( enum thread_type type, int signal )
 {
 	size_t count = 0;
 
 	for ( size_t i = 0; i < poolsize; ++i )
 	{
-		if ( *pool[i].type == 0 )
+		if ( pool[i].type == THREAD_FREE )
 		{
 			continue;
 		}
 
-		if ( *type == 0 || strcmp( pool[i].type, type ) == 0 )
+		if ( type == THREAD_ANY || pool[i].type == type )
 		{
 			errfs( LOG_THREAD, VERB, "Interrupting thread %s", pool[i].name );
 			pthread_kill( pool[i].thread, signal );
@@ -203,7 +248,7 @@ size_t signal_threads( char const * type, int signal )
 	return count;
 }
 
-int thread_join_group( char * type, void ** retval )
+int thread_join_group( enum thread_type type, void ** retval )
 {
 	size_t i, valid;
 	int err;
@@ -214,17 +259,18 @@ int thread_join_group( char * type, void ** retval )
 		// Thread 0 can not be joined.
 		for ( i = 1; i < poolsize; ++i )
 		{
-			if ( *pool[i].type == 0 )
+			if ( pool[i].type == THREAD_FREE )
 			{
 				continue;
 			}
 
-			if ( *type == 0 || strcmp( type, pool[i].type ) == 0 )
+			if ( type == THREAD_ANY || pool[i].type == type )
 			{
 				++valid;
 
-				if ( pool[i].ended == 0 )
+				if ( ( pool[i].state & ACCEPT ) == ACCEPT )
 				{
+					errfs( LOG_THREAD, INFO, "Interrupting thread %s", pool[i].name );
 					pthread_kill( pool[i].thread, SIGINT );
 					continue;
 				}
@@ -234,8 +280,8 @@ int thread_join_group( char * type, void ** retval )
 				if ( err == 0 )
 				{
 					errfs( LOG_THREAD, INFO, "Thread %s joined", pool[i].name );
-					strcpy( type, pool[i].type );
-					*pool[i].type = 0;
+					pool[i].type  = THREAD_FREE;
+					pool[i].state = UNCREATED;
 
 					return 0;
 				}
@@ -267,12 +313,12 @@ int thread_join( struct thread_state * joined, void ** retval )
 
 	for ( size_t i = 1; i < poolsize; ++i )
 	{
-		if ( *pool[i].type == 0 )
+		if ( pool[i].type == THREAD_FREE )
 		{
 			continue;
 		}
 
-		if ( pool[i].ended == 0 )
+		if ( pool[i].state != JOINED )
 		{
 			continue;
 		}
@@ -287,7 +333,7 @@ int thread_join( struct thread_state * joined, void ** retval )
 					memcpy( joined, &pool[i], sizeof( struct thread_state ) );
 				}
 
-				*pool[i].type = 0;
+				pool[i].type = THREAD_FREE;
 
 				return pool[i].thread;
 
@@ -309,7 +355,7 @@ int thread_done()
 
 	for ( size_t i = 1; i < poolsize; ++i )
 	{
-		if ( *pool[i].type == 0 )
+		if ( pool[i].type == THREAD_FREE )
 		{
 			continue;
 		}
@@ -319,13 +365,13 @@ int thread_done()
 			continue;
 		}
 
-		if ( pool[i].ended != 0 )
+		if ( pool[i].state == JOINED )
 		{
 			// TODO: Proper error code
 			return 1;
 		}
 
-		pool[i].ended = 1;
+		pool[i].state = JOINED;
 
 		return 0;
 	}

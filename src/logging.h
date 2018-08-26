@@ -20,7 +20,7 @@ void strdump( unsigned char const * restrict, ssize_t );
 #define INFO 4
 #define VERB 5
 
-#define errfs( log, level, format, ... ) if ( level <= log ) { fprintf( stderr, "%s [" __FILE__ ":" STR(__LINE__) "] %s " format "\n", get_timestamp(), get_thread_name(), __VA_ARGS__ ); }
+#define errfs( log, level, format, ... ) if ( level <= log ) { fprintf( stderr, "%s [" __FILE__ ":" STR(__LINE__) "] %s " format "\n", get_timestamp(), get_current_thread_name(), __VA_ARGS__ ); }
 // _Static_asset( level > NONE, "Log Level must be lower than NONE" );
 
 #define err(  log, level, mess )        errfs( log, level, "%s: %s", mess, strerror( errno ) )
