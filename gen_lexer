@@ -3,6 +3,7 @@
 
 import sys
 from string import ascii_letters
+from typing import IO
 
 ascii_and_null = set( ascii_letters ).union( set('\0') )
 
@@ -92,21 +93,42 @@ def gen( name ):
 
     h_file.close()
 
-    c_file.write( '#include "' + name + '.h"\n' )
-    c_file.write( '#include <string.h>\n\n' )
-    c_file.write( 'void lex_' + name + '( char * restrict str, struct lexed_' + name + ' * restrict out )\n{\n' )
-    c_file.write( '\tmemset( out, 0, sizeof( struct lexed_' + name + ' ) );\n\n' )
-    c_file.write( '\twhile ( 1 )\n\t{' )
-    print_tree( tree, 2, c_file )
-    c_file.write( 'cleanup:' )
-    c_file.write( '\n\t\twhile ( 1 )\n\t\t{\n' )
-    c_file.write( '\t\t\tif ( *str == 0 )\n\t\t\t{\n\t\t\t\treturn;\n\t\t\t}\n' )
-    c_file.write( '\n\t\t\tif ( *str == \'' + term + '\' )\n\t\t\t{\n\t\t\t\tstr[0] = 0;\n\t\t\t\t++str;\n\t\t\t\tbreak;\n\t\t\t}\n' )
-    if term == "\\n":
-        c_file.write( '\n\t\t\tif ( *str == \'\\r\' && str[1] == \'\\n\' )\n\t\t\t{\n\t\t\t\tstr[0] = 0;\n\t\t\t\tstr[1] = 0;\n\t\t\t\tstr += 2;\n\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\t++str;\n' )
+    w( c_file, 0, '#include "' + name + '.h"', '#include <string.h>', '' )
+    w( c_file, 0, 'void lex_' + name + '( char * restrict str, struct lexed_' + name + ' * restrict out )', '{' )
 
-    c_file.write( '\t\t}\n\t}\n}\n' )
+    w( c_file, 1, 'memset( out, 0, sizeof( struct lexed_' + name + ' ) );' )
+
+    w( c_file, 0, '' )
+    w( c_file, 1, 'while ( 1 )', '{' )
+
+    print_tree( tree, 2, 0, c_file )
+
+    w( c_file, 0, '', 'cleanup:' )
+    w( c_file, 2, 'while ( 1 )', '{' )
+    w( c_file, 3,   'if ( str[0] == 0 )', '{' )
+    w( c_file, 4,       'return;' )
+    w( c_file, 3,   '}', 'if ( str[0] == \'' + term + '\' )', '{' )
+    w( c_file, 4,       'str[0] = 0;', '++str;', 'break;' )
+    w( c_file, 3,   '}' )
+
+    if term == "\\n":
+        w( c_file, 3, 'if ( str[0] == \'\\r\' && str[1] == \'\\n\' )', '{' )
+        w( c_file, 4, 'str[0] = 0;', 'str[1] = 0;', 'str += 2;', 'break;' )
+        w( c_file, 3, '}' )
+
+    w( c_file, 3, '', '++str;' )
+
+    w( c_file, 2, '}' )
+    w( c_file, 1, '}' )
+    w( c_file, 0, '}' )
+
     c_file.close()
+
+
+def w( file: IO, indent: int, *data: str ):
+    for line in data:
+        file.write( '\t' * indent + line + '\n' )
+
 
 if __name__ == '__main__':
     gen( 'headers' )
