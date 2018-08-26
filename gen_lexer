@@ -4,6 +4,8 @@
 import sys
 from string import ascii_letters
 
+ascii_and_null = set( ascii_letters ).union( set('\0') )
+
 def add_token( node, token, fulltoken ):
     if len( token ) == 0:
         node[ '\0' ] = fulltoken
@@ -14,47 +16,58 @@ def add_token( node, token, fulltoken ):
 
     add_token( node[token[0]], token[1:], fulltoken )
 
-def print_tree( node, indent, c_file ):
+def print_token_read( indent, token, char, c_file ):
+    c_file.write( '\n' + '\t' * indent + 'str += ' + str(char) + ';\n' )
+    c_file.write( '\n' + '\t' * indent + 'while ( str[0] == \' \' ) ++str;\n' )
+    c_file.write( '\n' + '\t' * indent + 'out->' + token + ' = str;\n' )
+
+    return True
+
+def print_tree( node, indent, char, c_file ):
     if len( node ) == 1:
         for i in sorted( node.keys() ):
             if i == '\0':
-                c_file.write( '\n' + '\t' * indent + 'while ( *str == \' \' ) ++str;\n' )
-                c_file.write( '\n' + '\t' * indent + 'out->' + node[i] + ' = str;\n' )
-                return
+                return print_token_read( indent, node[i], char, c_file )
 
             elif ( i in ascii_letters ):
-                c_file.write( '\t' * indent + 'if ( ( *str & 0xDF ) !=\'' + i.upper() + '\' ) { goto cleanup; } ++str;\n' )
+                c_file.write( '\t' * indent + 'if ( ( str[' + str(char) + '] & 0xDF ) != \'' + i.upper() + '\' )\n' )
 
             else:
-                c_file.write( '\t' * indent + 'if ( *str !=\'' + i + '\' ) { goto cleanup; } ++str;\n' )
+                c_file.write( '\t' * indent + 'if ( str[' + str(char) + '] != \'' + i + '\' )\n' )
 
-            print_tree( node[i], indent, c_file );
+            c_file.write( '\t' * indent + '{\n' )
+            c_file.write( '\t' * (indent+1) + 'str += ' + str(char) + ';\n' )
+            c_file.write( '\t' * (indent+1) + 'goto cleanup;\n' )
+            c_file.write( '\t' * indent + '}\n' )
+
+            print_tree( node[i], indent, char + 1, c_file );
             return
 
+    case = set( node.keys() ).issubset( ascii_and_null )
+
+    if case:
+        c_file.write( '\n' + '\t' * indent + 'switch ( str[' + str(char) + '] & 0xDF )\n' )
     else:
-        c_file.write( '\n' + '\t' * indent + 'switch ( *str )\n' )
-        c_file.write( '\t' * indent + '{\n' )
+        c_file.write( '\n' + '\t' * indent + 'switch ( str[' + str(char) + '] )\n' )
 
-        for i in sorted( node.keys() ):
-            if i == '\0':
-                c_file.write( '\n' + '\t' * indent + 'while ( *str == \' \' ) ++str;\n' )
-                c_file.write( '\n' + '\t' * indent + 'out->' + node[i] + ' = str;\n' )
-                return
+    c_file.write( '\t' * indent + '{\n' )
 
-            if i in ascii_letters:
-                c_file.write( '\t' * (indent + 1) + 'case \'' + i.upper() + '\':\n' )
+    for i in sorted( node.keys() ):
+        if i == '\0':
+            c_file.write( '\t' * (indent + 1) + 'case \'\\0\':\n' )
+            print_token_read( indent + 2, node[i], char, c_file )
+
+        else:
+            c_file.write( '\t' * (indent + 1) + 'case \'' + i.upper() + '\':\n' )
+            if not case and i.lower() != i.upper():
                 c_file.write( '\t' * (indent + 1) + 'case \'' + i.lower() + '\':\n' )
+            print_tree( node[i], indent + 2, char + 1, c_file )
 
-            else:
-                c_file.write( '\t' * (indent + 1) + 'case \'' + i + '\':\n' )
+        c_file.write( '\t' * (indent + 2) + 'break;\n\n' )
 
-            c_file.write( '\t' * (indent + 2) + '++str;\n' )
-            print_tree( node[i], indent + 2, c_file )
-            c_file.write( '\t' * (indent + 2) + 'break;\n\n' )
-
-        c_file.write( '\t' * (indent + 1) + 'default:\n' )
-        c_file.write( '\t' * (indent + 2) + 'goto cleanup;\n' )
-        c_file.write( '\t' * indent + '}\n' )
+    c_file.write( '\t' * (indent + 1) + 'default:\n' )
+    c_file.write( '\t' * (indent + 2) + 'goto cleanup;\n' )
+    c_file.write( '\t' * indent + '}\n' )
 
     c_file.write( '\n' )
 
