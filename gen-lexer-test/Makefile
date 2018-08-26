@@ -9,7 +9,7 @@ lexer: test-main.o headers.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
 %.h %.c: %.fl
-	./lexer-gen.py $<
+	../gen_lexer $<
 
 test-main.o: test-main.c headers.h
 	$(CC) $(CFLAGS) -c -o $@ $<
