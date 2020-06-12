@@ -48,7 +48,7 @@ $(GEN)/$(LAYOUT)/%.c: $(LAYOUT)/%.xml
 
 $(INCLUDE)/$(GEN)/$(LAYOUT)/%.h: $(LAYOUT)/%.xml
 	@mkdir -vp $(dir $@)
-	tools/parse_layout $<
+	tools/parse_layout.py $<
 
 $(BUILD)/%.o : $(SRC)/%.c $(GLOBAL_H)
 	@mkdir -vp $(dir $@)
