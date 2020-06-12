@@ -48,7 +48,7 @@ $(GEN)/$(LAYOUT)/%.c: $(LAYOUT)/%.xml
 
 $(INCLUDE)/$(GEN)/$(LAYOUTS)/%.h: $(LAYOUT)/%.xml
 	@mkdir -vp $(dir $@)
-	./parse_layout $<
+	tools/parse_layout $<
 
 $(BUILD)/%.o : $(SRC)/%.c $(GLOBAL_H)
 	@mkdir -vp $(dir $@)
