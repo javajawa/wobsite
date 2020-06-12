@@ -20,15 +20,14 @@ def create_node(
     if node.nodeType == Node.ELEMENT_NODE:
         return create_element(handle, node, tokens, depth)
 
-    elif node.nodeType == Node.TEXT_NODE:
+    if node.nodeType == Node.TEXT_NODE:
         return create_text(handle, node, tokens, depth)
 
-    elif node.nodeType == Node.CDATA_SECTION_NODE:
+    if node.nodeType == Node.CDATA_SECTION_NODE:
         return create_cdata(handle, node, depth)
 
-    else:
-        handle.write(f"/* {Node} */".encode("utf-8"))
-        return False
+    handle.write(f"/* {Node} */".encode("utf-8"))
+    return False
 
 
 def create_cdata(handle: IO[bytes], text: Node, depth: int) -> bool:
@@ -40,13 +39,13 @@ def create_cdata(handle: IO[bytes], text: Node, depth: int) -> bool:
     handle.write(b"\t" * depth)
     handle.write(b"text(")
 
-    handle.write(b'\n' if '\n' in data else b' ')
+    handle.write(b"\n" if "\n" in data else b" ")
 
     handle.write(b'"')
     handle.write(escape(data).encode("utf-8"))
     handle.write(b'"')
 
-    if '\n' in data:
+    if "\n" in data:
         handle.write(b"\n")
         handle.write(b"\t" * depth)
     else:
@@ -90,7 +89,6 @@ def create_element(
     # First argument -- the tag name of the element
     handle.write(b"\t" * (depth + 1))
     handle.write(f'"{element.tagName}",\n'.encode("utf-8"))
-
 
     # Second argument -- list of attributes
     attrs = element.attributes
@@ -149,12 +147,12 @@ def create_element(
     return True
 
 
-def main(layout: str) -> None:
+def parse_layout(layout: str) -> None:
     tree = minidom.parse("layouts/{}.xml".format(layout))
 
     with open("gen/layouts/{}.c".format(layout), "w+b") as c_file:
         c_file.write(f'#include "gen/layouts/{layout}.h"\n'.encode("utf-8"))
-        c_file.write(f'#include "layout.h"\n\n'.encode("utf-8"))
+        c_file.write('#include "layout.h"\n\n'.encode("utf-8"))
         c_file.write(f"const union html_node {layout} =\n".encode("utf-8"))
 
         tokens: Dict[str, int] = {}
@@ -178,11 +176,14 @@ def main(layout: str) -> None:
         h_file.write("\t__MAX\n};\n\n#endif\n")
 
 
-if __name__ == "__main__":
-    layout: str = sys.argv[1]
+def main(layout: str) -> None:
     layout = path.basename(layout)
 
     if layout.endswith(".xml"):
         layout = layout[:-4]
 
     main(layout)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1])

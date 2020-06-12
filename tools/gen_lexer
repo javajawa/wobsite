@@ -4,37 +4,40 @@
 from __future__ import annotations
 
 from string import ascii_letters
-from typing import IO
+from typing import Any, Dict, TextIO
 
-ASCCI_AND_NULL = set(ascii_letters).union(set("\0"))
+ASCII_AND_NULL = set(ascii_letters).union(set("\0"))
+Tree = Dict[str, Any]
 
 
-def add_token(node, token, fulltoken):
-    if len(token) == 0:
+def add_token(node: Tree, token: str, fulltoken: str) -> None:
+    if not token:
         node["\0"] = fulltoken
         return
 
     if not token[0] in node:
         node[token[0]] = {}
 
+    if not isinstance(node[token[0]], Dict):
+        raise Exception("Invalid state")
+
     add_token(node[token[0]], token[1:], fulltoken)
 
 
-def print_token_read(indent, token, char, c_file):
+def print_token_read(indent: int, token: str, char: int, c_file: TextIO) -> None:
     c_file.write("\n" + "\t" * indent + "str += " + str(char) + ";\n")
     c_file.write("\n" + "\t" * indent + "while ( str[0] == ' ' ) ++str;\n")
     c_file.write("\n" + "\t" * indent + "out->" + token + " = str;\n")
 
-    return True
 
-
-def print_tree(node, indent, char, c_file):
+def print_tree(node: Tree, indent: int, char: int, c_file: TextIO) -> None:
     if len(node) == 1:
         for i in sorted(node.keys()):
             if i == "\0":
-                return print_token_read(indent, node[i], char, c_file)
+                print_token_read(indent, node[i], char, c_file)
+                return
 
-            elif i in ascii_letters:
+            if i in ascii_letters:
                 format_str = "if ( ( str[{0}] & 0xDF ) != '{1}' )"
             else:
                 format_str = "if (   str[{0}]          != '{1}' )"
@@ -47,7 +50,7 @@ def print_tree(node, indent, char, c_file):
 
         return
 
-    case = set(node.keys()).issubset(ASCCI_AND_NULL)
+    case = set(node.keys()).issubset(ASCII_AND_NULL)
 
     if case:
         format_str = "switch ( str[{0}] & 0xDF )"
@@ -76,20 +79,16 @@ def print_tree(node, indent, char, c_file):
     w(c_file, indent, "}", "")
 
 
-def gen(name: str):
+def gen(name: str) -> None:
     # Tree contains each of the per letter parse states,
     # encoded as [ current state + letter => new state ].
     # a 'letter' which is the null character represents
     # a termination of a token.
-    tree = {}
-
-    # The type map maintain what type a token should be
-    # cast too.
-    types = {}
+    tree: Tree = {}
 
     # Set up the output files
-    h_file = open(name + ".h", "w")
-    c_file = open(name + ".c", "w")
+    h_file: TextIO = open(name + ".h", "w")
+    c_file: TextIO = open(name + ".c", "w")
 
     # Read from the input file
     with open(name + ".fl", "rU") as input_file:
@@ -161,9 +160,9 @@ def gen(name: str):
     c_file.close()
 
 
-def w(file: IO, indent: int, *data: str):
+def w(file: TextIO, indent: int, *data: str) -> None:
     for line in data:
-        if len(line):
+        if line:
             file.write("\t" * indent + line + "\n")
         else:
             file.write("\n")
