@@ -7,8 +7,8 @@
 #include "logging.h"
 #include "config.h"
 
-static size_t poolsize = 0;
-static struct thread_state * pool = NULL;
+static size_t const poolsize = 1 + RESPONDER_THREADS;
+static struct thread_state pool[1 + RESPONDER_THREADS];
 static char const * default_thread_name = "unknown_thread";
 
 static pthread_mutex_t thread_state_mtx;
@@ -30,52 +30,11 @@ char const * get_thread_type_name( enum thread_type type )
 }
 
 /**
- * Attempt to expand the allocated memory space which maintains
- * the list of active threads we have.
- * The current size is held in "poolsize" and is increased in
- * increments of 8.
- *
- * This function is not thread-safe
- */
-int thread_pool_expand()
-{
-	poolsize += 8;
-	pool = realloc( pool, sizeof( struct thread_state ) * poolsize );
-
-	if ( pool == NULL )
-	{
-		return 1;
-	}
-
-	for ( size_t i = poolsize - 8; i < poolsize; ++i )
-	{
-		pool[i].type  = THREAD_ANY;
-		pool[i].state = UNCREATED;
-	}
-
-	return 0;
-}
-
-/**
  * Creates the threadpool
  */
 int thread_pool_init()
 {
 	pthread_mutex_lock(&thread_state_mtx);
-
-	if ( poolsize )
-	{
-		errno = EBADE;
-
-		pthread_mutex_unlock(&thread_state_mtx);
-
-		return 1;
-	}
-
-	if ( thread_pool_expand() )
-	{
-		return 1;
-	}
 
 	pool[0].thread = pthread_self();
 	pool[0].type   = THREAD_MAIN;
@@ -125,10 +84,6 @@ int thread_pool_destroy()
 			return -1;
 		}
 	}
-
-	free( pool );
-	pool = NULL;
-	poolsize = 0;
 
 	pthread_mutex_unlock(&thread_state_mtx);
 
@@ -222,10 +177,7 @@ size_t create_threads( enum thread_type type, size_t count, void *(*func) (void 
 		{
 			if ( ++index == poolsize )
 			{
-				if ( thread_pool_expand() )
-				{
-					return created;
-				}
+				return created;
 			}
 		}
 
