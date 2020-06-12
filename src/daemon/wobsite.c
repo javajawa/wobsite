@@ -106,6 +106,7 @@ int main( void )
 	main_loop();
 
 	errs( LOG_THREAD, INFO, "Signalling responders to hangup" );
+	set_thread_group_state( THREAD_RESPONDER, DRAINING );
 	signal_threads( THREAD_RESPONDER, SIGHUP );
 
 	while ( 1 )

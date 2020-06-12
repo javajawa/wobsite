@@ -33,6 +33,8 @@ int get_current_thread_details( enum thread_type *, enum state * );
 char const * get_current_thread_name();
 char const * get_thread_type_name( enum thread_type type );
 
+size_t set_thread_group_state( enum thread_type type, enum state state );
+
 int thread_done();
 int thread_join_group( enum thread_type type, void ** retval );
 int thread_join( struct thread_state * joined, void ** retval );

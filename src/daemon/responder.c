@@ -288,7 +288,7 @@ void* accept_loop( void * args )
 	ssize_t result;
 
 	errs( LOG_NET, INFO, "Accepting requests" );
-	while ( state == 0 )
+	while ( 1 )
 	{
 		get_current_thread_details( NULL, &state );
 
@@ -296,6 +296,7 @@ void* accept_loop( void * args )
 		{
 			if ( ( state & ACCEPT ) == 0 )
 			{
+				errs( LOG_NET, INFO, "Not in ACCEPT state, exiting" )
 				break;
 			}
 

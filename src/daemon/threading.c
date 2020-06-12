@@ -149,7 +149,9 @@ int get_current_thread_details( enum thread_type * type, enum state * state )
 			}
 			if ( state )
 			{
+				pthread_mutex_lock(&thread_state_mtx);
 				*state = pool[i].state;
+				pthread_mutex_unlock(&thread_state_mtx);
 			}
 			return 0;
 		}
@@ -158,6 +160,33 @@ int get_current_thread_details( enum thread_type * type, enum state * state )
 	errno = ESRCH;
 
 	return 1;
+}
+
+size_t set_thread_group_state( enum thread_type type, enum state state )
+{
+	pthread_mutex_lock(&thread_state_mtx);
+
+	size_t changes = 0;
+
+	for ( size_t i = 0; i < poolsize; ++i )
+	{
+		if ( pool[i].type == type )
+		{
+			if ( pool[i].state >= state )
+			{
+				// Possible verbose error here?
+				continue;
+			}
+
+			errfs( LOG_THREAD, VERB, "Thread %s updated to state %u", pool[i].name, state & 0xF0 );
+			pool[i].state = state;
+			++changes;
+		}
+	}
+
+	pthread_mutex_unlock(&thread_state_mtx);
+
+	return changes;
 }
 
 char const * get_current_thread_name()
@@ -185,7 +214,7 @@ size_t create_threads( enum thread_type type, size_t count, void *(*func) (void 
 		return 0;
 	}
 
-	// TODO: Lock the mutex here!
+	pthread_mutex_lock(&thread_state_mtx);
 
 	for ( size_t i = 0; i < count; ++i )
 	{
@@ -200,7 +229,8 @@ size_t create_threads( enum thread_type type, size_t count, void *(*func) (void 
 			}
 		}
 
-		pool[index].type = type;
+		pool[index].type  = type;
+		pool[index].state = STARTING;
 		// TODO: Error Handling
 		snprintf( pool[index].name, 15, "%s-%lu", thread_type_names[ type ], ++thead_type_counts[ type ] );
 
@@ -221,7 +251,7 @@ size_t create_threads( enum thread_type type, size_t count, void *(*func) (void 
 #endif
 	}
 
-	// TODO: Unlock mutex here
+	pthread_mutex_unlock(&thread_state_mtx);
 
 	return created;
 }
@@ -371,6 +401,7 @@ int thread_done()
 			return 1;
 		}
 
+		errfs( LOG_THREAD, VERB, "Thread %s declares itself done", pool[i].name );
 		pool[i].state = JOINED;
 
 		return 0;
