@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Benedict Harcourt <ben.harcourt@harcourtprogramming.co.uk>
+
+SPDX-License-Identifier: CC0-1.0
+-->
+
 <container id="$ID">
 	<title>$TITLE</title>
 	<attrs a="a" class="$CLASS" />

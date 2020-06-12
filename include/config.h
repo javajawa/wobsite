@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 Benedict Harcourt <ben.harcourt@harcourtprogramming.co.uk>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+
 // Connection timeouts
 #define READ_TIMEOUT_SEC 3
 #define CONN_TIMEOUT_SEC 1

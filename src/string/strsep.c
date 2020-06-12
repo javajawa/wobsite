@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 Benedict Harcourt <ben.harcourt@harcourtprogramming.co.uk>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+
 #include "string/strsep.h"
 
 #include <stddef.h>

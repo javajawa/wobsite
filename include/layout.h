@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 Benedict Harcourt <ben.harcourt@harcourtprogramming.co.uk>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+
 #define attrs( ... ) (struct attribute[]){ __VA_ARGS__, { "", { .t = { TOKEN_NULL } } } }
 #define at_str( key, value ) { key, { .s = { TOKEN_STRING, value } } }
 #define at_rep(  key, value ) { key, { .p = { TOKEN_PARAM,  value } } }
