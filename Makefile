@@ -46,7 +46,7 @@ $(GEN)/$(LAYOUT)/%.c: $(LAYOUT)/%.xml
 	@mkdir -vp $(dir $@)
 	@$(MAKE) $(MAKEFLAGS) "$(INCLUDE)/$(patsubst %.c,%.h,$(@))"
 
-$(INCLUDE)/$(GEN)/$(LAYOUTS)/%.h: $(LAYOUT)/%.xml
+$(INCLUDE)/$(GEN)/$(LAYOUT)/%.h: $(LAYOUT)/%.xml
 	@mkdir -vp $(dir $@)
 	tools/parse_layout $<
 
@@ -59,6 +59,9 @@ $(BUILD)/%.o : $(GEN)/%.c $(INCLUDE)/$(GEN)/%.h $(GLOBAL_H)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	-rm -Rf build $(LAYOUTS_C) $(LAYOUTS_H) $(WOBSITE)
-	-rmdir $(GEN)/$(LAYOUTS) $(GEN)
-	-rmdir $(addprefix $(INCLUDE),$(GEN)/$(LAYOUTS) $(GEN))
+	-rm -vf $(WOBSITE)
+	-rm -Rf $(BUILD)
+	-rm -vf $(LAYOUTS_C)
+	-rm -vf $(LAYOUTS_H)
+	-rmdir $(GEN)/$(LAYOUT) $(GEN)
+	-rmdir $(INCLUDE)/$(GEN)/$(LAYOUT) $(INCLUDE)/$(GEN)
