@@ -77,6 +77,7 @@ int accept_connection( struct connection * connection, int sock )
 		switch ( errno )
 		{
 			case EINTR:
+				errs( LOG_NET, VERB, "Received interrupt whilst waiting for connection" );
 				return 1;
 
 			case EBADF:
@@ -87,8 +88,10 @@ int accept_connection( struct connection * connection, int sock )
 		}
 	}
 
+	// No connections available
 	if ( result == 0 )
 	{
+		errs( LOG_NET, VERB, "Timeout whilst waiting for connection" );
 		return 1;
 	}
 
@@ -143,7 +146,7 @@ int accept_connection( struct connection * connection, int sock )
 	// Append the closing ']' and the port number
 	snprintf( connection->remote + result, 52 - result, "]:%u", connection->port );
 
-	errfs( LOG_NET, VERB, "Accepted connection from %s", connection->remote );
+	errfs( LOG_NET, INFO, "Accepted connection from %s", connection->remote );
 
 	return 0;
 }
@@ -170,25 +173,51 @@ int read_headers( char* buffer, struct connection const * connection )
 		timeout.tv_usec = connection->time.tv_usec;
 		result = select( connection->fd + 1, &descriptors, NULL, NULL, &timeout );
 
+		// Propagate any error in select() call.
 		if ( result == -1 )
 		{
 			return -1;
 		}
+
+		// Send a timeout error if nothing to read before timeout.
 		if ( result == 0 )
 		{
 			errno = ETIMEDOUT;
 			return -1;
 		}
 
+		// Read up to MAX_HEADER_LENGTH bytes into the buffer.
 		result = read( connection->fd, reader, MAX_HEADER_LENGTH - offset );
 
+		// Propagate any read error
 		if ( result <= 0 )
 		{
 			return result;
 		}
 
+		// Make how much buffer we have used up.
 		offset += result;
 
+		// Look for a \r\n\r\n or \n\n (or any other reasonable combination).
+		// This loop will look up to 'result' bytes, which is the length of
+		// header we have just read.
+		//
+		// NOTE: the value of state must preserved per loop iteration.
+		//
+		// The state machine for this loop looks roughly as follows, with all
+		// other inputs returning to the zero state.
+		//
+		//  [ 0 ]--\r-->[ 1 ]
+		//    |        /
+		//   \n     \n
+		//    |    /
+        //    v |/_
+		//  [ 2 ]--\r-->[ 3 ]
+		//    |        /
+		//   \n     \n
+		//    |    /
+        //    v |/_
+		//  [ 4 ]
 		for ( ; result != 0 && state != 4; ++reader, --result )
 		{
 			switch ( *reader )
@@ -198,7 +227,6 @@ int read_headers( char* buffer, struct connection const * connection )
 				default:   state = 0;
 			}
 		}
-		--reader;
 
 		clock_gettime( CLOCK_MONOTONIC, &end );
 
@@ -218,6 +246,11 @@ int read_headers( char* buffer, struct connection const * connection )
 			errno = EMSGSIZE;
 			return -1;
 		}
+
+		// If we have not exited the function, there must be more header to
+		// be read, thus `reader` is currently pointing at the current null
+		// terminator. Here we reset it to the last actual character.
+		--reader;
 	}
 }
 

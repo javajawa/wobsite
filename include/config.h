@@ -22,5 +22,5 @@
 #ifdef DEBUG
 #define LOG_NET    VERB
 #else
-#define LOG_NET    WARN
+#define LOG_NET    INFO
 #endif
