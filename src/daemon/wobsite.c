@@ -5,6 +5,7 @@
 #include "daemon/threading.h"
 
 #include <signal.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -100,7 +101,9 @@ int main( void )
 
 	errs( LOG_THREAD, VERB, "Creating " STR(RESPONDER_THREADS) " responders" );
 	// TODO: Error handling (if error, set state = STATE_ERROR?)
-	create_threads( THREAD_RESPONDER, RESPONDER_THREADS, accept_loop, &socket_fd );
+	size_t threads_created = create_threads( THREAD_RESPONDER, RESPONDER_THREADS, accept_loop, &socket_fd );
+
+	errfs( LOG_THREAD, VERB, "Created %lu responder threads", threads_created );
 
 	errs( LOG_THREAD, WARN, "Beginning main loop" );
 	main_loop();
@@ -155,10 +158,40 @@ void main_loop( void )
 	void * thread_result;
 	char buffer[STDIN_BUFFER];
 
+	fd_set descriptors;
+	FD_ZERO( &descriptors );
+
 	while ( 1 )
 	{
-		while ( stdin_valid )
+		if ( thread_join( &joined_thread, &thread_result ) )
 		{
+			errfs(
+				LOG_THREAD, VERB,
+				"Joined thread %s (%lu), result %p => %s",
+				joined_thread.name, joined_thread.thread,
+				thread_result, (char*)thread_result
+			);
+		}
+
+		if ( stdin_valid )
+		{
+			FD_SET( STDIN_FILENO, &descriptors );
+			struct timeval timeout = { 1, 0 };
+
+			result = select( STDIN_FILENO + 1, &descriptors, NULL, NULL, &timeout );
+
+			if ( result == -1 )
+			{
+				err( LOG_THREAD, ALRT, "Error in select(2) on stdin" );
+				return;
+			}
+
+			// No data -- check for ended threads, and then select() again.
+			if ( result == 0 )
+			{
+				continue;
+			}
+
 			result = read( STDIN_FILENO, buffer, STDIN_BUFFER );
 
 			if ( result == 0 )
@@ -176,10 +209,10 @@ void main_loop( void )
 
 					case EBADF:
 						stdin_valid = 0;
-						break;
+						continue;
 
 					case EAGAIN:
-						break;
+						continue;
 
 					default:
 						err( LOG_THREAD, WARN, "Error reading from standard input" );
@@ -187,22 +220,10 @@ void main_loop( void )
 				}
 			}
 
-			// Keep reading until all buffer is read
-			// TODO: Actually read and throw away unused data.
-			if ( result < STDIN_BUFFER )
+			if (strncmp(buffer, "quit\n", result) == 0)
 			{
-				break;
+				return;
 			}
-		}
-
-		if ( thread_join( &joined_thread, &thread_result ) )
-		{
-			errfs(
-				LOG_THREAD, VERB,
-				"Joined thread %s (%lu), result %p => %s",
-				joined_thread.name, joined_thread.thread,
-				thread_result, (char*)thread_result
-			);
 		}
 	}
 }
